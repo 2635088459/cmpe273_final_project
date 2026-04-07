@@ -1,0 +1,101 @@
+# ============================================================
+# EraseGraph — Docker Compose Infrastructure (INFRA-001)
+# ============================================================
+# Usage:
+#   cp .env.example .env
+#   docker-compose up -d
+#   docker-compose ps          # check all services healthy
+#   docker-compose down -v     # tear down + remove volumes
+# ============================================================
+
+services:
+  # ────────────────────────────────────────────────────────────
+  # PostgreSQL — primary relational database
+  # ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: erasegraph-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-erasegraph}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-erasegraph}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erasegraph}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ────────────────────────────────────────────────────────────
+  # Redis — cache layer
+  # ────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: erasegraph-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ────────────────────────────────────────────────────────────
+  # RabbitMQ — message broker (with management UI)
+  # ────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: erasegraph-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"          # AMQP
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-erasegraph}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-erasegraph_secret}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./init-scripts/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./init-scripts/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ────────────────────────────────────────────────────────────
+  # Jaeger — distributed tracing (all-in-one)
+  # ────────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: erasegraph-jaeger
+    restart: unless-stopped
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"       # Jaeger UI
+      - "4317:4317"                             # OTLP gRPC
+      - "4318:4318"                             # OTLP HTTP
+      - "14268:14268"                           # Jaeger HTTP Thrift
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:16686/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local

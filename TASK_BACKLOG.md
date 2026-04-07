@@ -439,6 +439,85 @@ Complete API documentation with examples and schemas.
 
 ---
 
+## ☸️ Epic: Kubernetes Migration (Optional/Future)
+
+### K8S-001: Kubernetes Deployment Manifests
+- **Priority:** 🟢 Low (Post-MVP)
+- **Story Points:** 6
+- **Assignee:** _[Available]_
+- **Status:** TODO
+- **Dependencies:** All backend services completed
+
+**Description:**  
+Convert Docker Compose setup to Kubernetes manifests for production deployment.
+
+**Acceptance Criteria:**
+- [ ] Deployment manifests for all services (DRS, PDS, CCS, PS)
+- [ ] ConfigMaps for environment variables
+- [ ] Secrets for database passwords
+- [ ] Services for internal communication
+- [ ] Ingress for external access
+- [ ] Persistent volumes for PostgreSQL data
+- [ ] Resource limits and requests defined
+
+**Definition of Done:**
+- All services deploy successfully on local Kubernetes
+- Health checks and readiness probes work
+- Services can communicate with each other
+
+---
+
+### K8S-002: Helm Chart Creation
+- **Priority:** 🟢 Low (Post-MVP)
+- **Story Points:** 4
+- **Assignee:** _[Available]_
+- **Status:** TODO
+- **Dependencies:** K8S-001
+
+**Description:**  
+Package Kubernetes manifests into a Helm chart for easier deployment management.
+
+**Acceptance Criteria:**
+- [ ] Helm chart structure with templates/
+- [ ] Values.yaml with configurable parameters
+- [ ] Chart dependencies for PostgreSQL, Redis, RabbitMQ
+- [ ] Environment-specific values files (dev, staging, prod)
+- [ ] Installation and upgrade documentation
+- [ ] Chart testing with helm test
+
+**Definition of Done:**
+- Chart installs successfully with `helm install`
+- Parameters can be customized via values.yaml
+- Upgrade/rollback scenarios work
+
+---
+
+### K8S-003: Service Mesh Integration (Istio)
+- **Priority:** 🟢 Low (Advanced)
+- **Story Points:** 8
+- **Assignee:** _[Available]_
+- **Status:** TODO
+- **Dependencies:** K8S-001, K8S-002
+
+**Description:**  
+Add Istio service mesh for advanced traffic management, security, and observability.
+
+**Acceptance Criteria:**
+- [ ] Istio sidecar injection for all services
+- [ ] VirtualServices for traffic routing
+- [ ] DestinationRules for load balancing
+- [ ] PeerAuthentication for mTLS
+- [ ] Telemetry v2 configuration
+- [ ] Kiali dashboard integration
+- [ ] Circuit breaker and retry policies
+
+**Definition of Done:**
+- All service-to-service communication uses mTLS
+- Traffic policies are enforced
+- Observability data flows to Istio telemetry
+
+---
+
 ## 🏁 Sprint Planning Suggestions
 
 ### Sprint 1 (Week 1): Foundation
@@ -466,6 +545,11 @@ Complete API documentation with examples and schemas.
 - DOC-002
 - Final integration testing
 
+### Post-MVP (Optional): Kubernetes Migration
+**Focus:** Production-ready deployment
+- K8S-001, K8S-002
+- K8S-003 (if advanced features needed)
+
 ---
 
 ## 📊 Task Status Tracking
@@ -477,7 +561,8 @@ Complete API documentation with examples and schemas.
 | Frontend | 4 | 4 | 0 | 0 | 0 |
 | Testing | 2 | 2 | 0 | 0 | 0 |
 | Documentation | 2 | 2 | 0 | 0 | 0 |
-| **Total** | **16** | **16** | **0** | **0** | **0** |
+| Kubernetes (Optional) | 3 | 3 | 0 | 0 | 0 |
+| **Total** | **19** | **19** | **0** | **0** | **0** |
 
 ---
 
