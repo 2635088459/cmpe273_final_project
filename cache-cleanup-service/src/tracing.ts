@@ -10,7 +10,7 @@ const otlpExporter = new OTLPTraceExporter({
 
 const sdk = new NodeSDK({
   resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: 'erasegraph-primary-data-service',
+    [SemanticResourceAttributes.SERVICE_NAME]: 'erasegraph-cache-cleanup-service',
     [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
     [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
   }),
@@ -24,6 +24,6 @@ const sdk = new NodeSDK({
 
 sdk.start();
 
-console.log('OpenTelemetry tracing initialized for primary-data-service');
+console.log('OpenTelemetry tracing initialized for cache-cleanup-service');
 
 export default sdk;
