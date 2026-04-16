@@ -92,6 +92,46 @@ services:
       timeout: 5s
       retries: 10
 
+  # ────────────────────────────────────────────────────────────
+  # EraseGraph Backend — NestJS API server
+  # ────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: erasegraph-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      # RabbitMQ configuration
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      # OpenTelemetry configuration
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
     driver: local
