@@ -132,6 +132,74 @@ services:
       timeout: 10s
       retries: 3
 
+  # ────────────────────────────────────────────────────────────
+  # Primary Data Service — BACKEND-003
+  # Consumes DeletionRequested, deletes from PostgreSQL users table
+  # ────────────────────────────────────────────────────────────
+  primary-data-service:
+    build:
+      context: ../primary-data-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-primary-data-service
+    restart: unless-stopped
+    ports:
+      - "${PRIMARY_DATA_PORT:-3002}:3002"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Cache Cleanup Service — BACKEND-004
+  # Consumes DeletionRequested, DELs Redis keys, simulates failure + retry
+  # ────────────────────────────────────────────────────────────
+  cache-cleanup-service:
+    build:
+      context: ../cache-cleanup-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-cache-cleanup-service
+    restart: unless-stopped
+    ports:
+      - "${CACHE_CLEANUP_PORT:-3003}:3003"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3003
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+      # Set to "false" to disable intentional first-attempt failure
+      SIMULATE_FAILURE: ${SIMULATE_FAILURE:-true}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3003/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
     driver: local

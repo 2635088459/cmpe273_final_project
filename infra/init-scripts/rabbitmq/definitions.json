@@ -138,6 +138,14 @@
       "destination_type": "queue",
       "routing_key": "retry.cache-cleanup",
       "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.deletion-requests.cache-cleanup",
+      "destination_type": "queue",
+      "routing_key": "deletion.requested.cache",
+      "arguments": {}
     }
   ]
 }
