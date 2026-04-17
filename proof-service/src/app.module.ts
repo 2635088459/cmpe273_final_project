@@ -1,16 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DeletionRequestModule } from './deletion-request/deletion-request.module';
-import { EventPublisherService } from './events/event-publisher.service';
-import { EventConsumerService } from './events/event-consumer.service';
-import { DeletionRequest, DeletionStep, ProofEvent, User } from './database/entities';
+import { ProofEvent } from './entities';
+import { ProofConsumerModule } from './proof-consumer/proof-consumer.module';
+import { ProofModule } from './proof/proof.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../.env'
+      envFilePath: '../.env',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -21,14 +20,15 @@ import { DeletionRequest, DeletionStep, ProofEvent, User } from './database/enti
         username: configService.get('DB_USERNAME', 'erasegraph'),
         password: configService.get('DB_PASSWORD', 'erasegraph_secret'),
         database: configService.get('DB_DATABASE', 'erasegraph'),
-        entities: [DeletionRequest, DeletionStep, ProofEvent, User],
-        synchronize: false, // Use migrations in production
-        logging: configService.get('NODE_ENV') === 'development'
+        entities: [ProofEvent],
+        synchronize: false,
+        logging: configService.get('NODE_ENV') === 'development',
       }),
-      inject: [ConfigService]
+      inject: [ConfigService],
     }),
-    DeletionRequestModule
+    TypeOrmModule.forFeature([ProofEvent]),
+    ProofConsumerModule,
+    ProofModule,
   ],
-  providers: [EventPublisherService, EventConsumerService]
 })
 export class AppModule {}

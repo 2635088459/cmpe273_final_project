@@ -200,6 +200,41 @@ services:
       timeout: 10s
       retries: 3
 
+  # ────────────────────────────────────────────────────────────
+  # Proof Service — BACKEND-005
+  # Consumes step result events and stores queryable proof records
+  # ────────────────────────────────────────────────────────────
+  proof-service:
+    build:
+      context: ../proof-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-proof-service
+    restart: unless-stopped
+    ports:
+      - "${PROOF_SERVICE_PORT:-3004}:3004"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3004
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3004/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
     driver: local

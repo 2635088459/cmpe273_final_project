@@ -1,14 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import * as amqp from 'amqplib';
 import { 
   DeletionStepSucceededEvent, 
   DeletionStepFailedEvent,
   EventTypes 
 } from './types';
-import { DeletionStep, ProofEvent, DeletionStepStatus } from '../database/entities';
+import { DeletionStepStatus } from '../database/entities';
 import { DeletionRequestService } from '../deletion-request/deletion-request.service';
 
 @Injectable()
@@ -20,8 +18,6 @@ export class EventConsumerService {
 
   constructor(
     private configService: ConfigService,
-    @InjectRepository(ProofEvent)
-    private proofEventRepository: Repository<ProofEvent>,
     private deletionRequestService: DeletionRequestService
   ) {}
 
@@ -113,27 +109,14 @@ export class EventConsumerService {
   }
 
   private async handleStepSucceeded(event: DeletionStepSucceededEvent) {
-    const { request_id, step_name, service_name, metadata } = event;
+    const { request_id, step_name } = event;
 
     try {
-      // Update step status
       await this.deletionRequestService.updateStepStatus(
         request_id,
         step_name,
         DeletionStepStatus.SUCCEEDED
       );
-
-      // Create proof event
-      await this.proofEventRepository.save({
-        request_id,
-        service_name,
-        event_type: EventTypes.DELETION_STEP_SUCCEEDED,
-        payload: {
-          step_name,
-          metadata,
-          timestamp: event.timestamp
-        }
-      });
 
       this.logger.log(`Successfully processed step succeeded for ${request_id}:${step_name}`);
     } catch (error) {
@@ -143,29 +126,15 @@ export class EventConsumerService {
   }
 
   private async handleStepFailed(event: DeletionStepFailedEvent) {
-    const { request_id, step_name, service_name, error_message, metadata } = event;
+    const { request_id, step_name, error_message } = event;
 
     try {
-      // Update step status with error
       await this.deletionRequestService.updateStepStatus(
         request_id,
         step_name,
         DeletionStepStatus.FAILED,
         error_message
       );
-
-      // Create proof event
-      await this.proofEventRepository.save({
-        request_id,
-        service_name,
-        event_type: EventTypes.DELETION_STEP_FAILED,
-        payload: {
-          step_name,
-          error_message,
-          metadata,
-          timestamp: event.timestamp
-        }
-      });
 
       this.logger.log(`Successfully processed step failed for ${request_id}:${step_name}`);
     } catch (error) {

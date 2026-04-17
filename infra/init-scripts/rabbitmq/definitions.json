@@ -1,10 +1,24 @@
 {
   "rabbit_version": "3.13",
-  "users": [],
+  "users": [
+    {
+      "name": "erasegraph",
+      "password": "erasegraph_secret",
+      "tags": "administrator"
+    }
+  ],
   "vhosts": [
     { "name": "/" }
   ],
-  "permissions": [],
+  "permissions": [
+    {
+      "user": "erasegraph",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
   "topic_permissions": [],
   "parameters": [],
   "policies": [
