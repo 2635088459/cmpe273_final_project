@@ -1,4 +1,4 @@
-# 🎉 BACKEND-001 & BACKEND-002 Implementation Complete!
+# 🎉 BACKEND-001, BACKEND-002 & BACKEND-005 Implementation Complete!
 
 ## ✅ Successfully Implemented Services
 
@@ -28,6 +28,21 @@
 - ✅ Message routing to primary-data and cache-cleanup queues
 - ✅ Event consumer service ready for step result processing
 - ✅ Error handling for message processing failures
+
+### BACKEND-005: Proof Service ✅
+**Status:** ✅ COMPLETED  
+**Story Points:** 3  
+**Technology Stack:** NestJS + TypeORM + PostgreSQL + RabbitMQ  
+
+**Features Implemented:**
+- ✅ Dedicated `proof-service` microservice added
+- ✅ Consumes `DeletionStepSucceeded` and `DeletionStepFailed` events from RabbitMQ
+- ✅ Writes audit records to `proof_events`
+- ✅ Stores event payloads in JSONB
+- ✅ Exposes `GET /proof/:requestId`
+- ✅ Stores timestamps for audit events
+- ✅ Handles duplicate filtering with deterministic `dedupe_key`
+- ✅ Removed overlapping proof writing from `backend` so proof ownership is segregated
 
 ## 🏗️ Technical Architecture
 
@@ -65,7 +80,26 @@ await this.eventPublisher.publishDeletionRequested({
 // Routes to multiple queues for parallel processing
 - erasegraph.deletion-requests.primary-data
 - erasegraph.deletion-requests.cache-cleanup
+- erasegraph.proof-events
 ```
+
+### Proof Service Architecture
+```typescript
+// Proof service consumes step result events and stores audit rows
+@Controller('proof')
+export class ProofController {
+  @Get(':requestId')
+  async getProof(@Param('requestId') requestId: string) {
+    return this.proofService.getProofByRequestId(requestId);
+  }
+}
+```
+
+**Proof storage details:**
+- `proof-service` owns proof ingestion and proof querying
+- audit records are written to `proof_events`
+- `dedupe_key` enforces idempotent event storage
+- backend still aggregates request/step status, but no longer inserts proof rows
 
 ### OpenTelemetry Integration
 - ✅ Distributed tracing with Jaeger
@@ -87,6 +121,12 @@ await this.eventPublisher.publishDeletionRequested({
 - Request status retrieval (GET) returns complete step details
 - Proof retrieval (GET) returns audit trail with verification summary
 - Input validation properly rejects invalid requests
+
+### Proof Service Verification ✅
+- `GET /proof/{request_id}` returns stored proof events
+- Proof events persisted for real workflow execution
+- Duplicate check returned zero duplicate `dedupe_key` rows
+- Verified with request `5977928e-f140-4b31-a310-183b8f2dd24a`
 
 ### Database Integration ✅
 - Deletion requests persisted correctly
@@ -110,6 +150,7 @@ await this.eventPublisher.publishDeletionRequested({
 | `/deletions` | POST | Create deletion request | 202 + request_id |
 | `/deletions/{id}` | GET | Get request status | 200 + status/steps |
 | `/deletions/{id}/proof` | GET | Get audit trail | 200 + proof events |
+| `/proof/{requestId}` | GET | Get proof from proof-service | 200 + audit events |
 | `/health` | GET | Health check | 200 + service status |
 | `/api/docs` | GET | Swagger UI | Interactive API docs |
 
@@ -121,6 +162,7 @@ await this.eventPublisher.publishDeletionRequested({
 - ✅ `erasegraph-redis` - Cache (port 6379)
 - ✅ `erasegraph-rabbitmq` - Message Queue (ports 5672/15672)
 - ✅ `erasegraph-jaeger` - Tracing (port 16686)
+- ✅ `erasegraph-proof-service` - Proof API + audit consumer (port 3004)
 
 **Health Status:** All containers healthy and communicating
 
@@ -152,6 +194,9 @@ backend/
 - ✅ **BACKEND-003**: Primary Data Service (can start immediately)
 - ✅ **BACKEND-004**: Cache Cleanup Service  
 - ✅ **FRONTEND-001**: React Dashboard Development
+
+**Completed in this update:**
+- ✅ **BACKEND-005**: Proof Service
 
 **Infrastructure Foundation Complete:**
 - Database schema operational
@@ -191,8 +236,11 @@ curl http://localhost:3001/deletions/{request_id}
 
 # View proof
 curl http://localhost:3001/deletions/{request_id}/proof
+
+# View proof directly from proof-service
+curl http://localhost:3004/proof/{request_id}
 ```
 
 ---
 
-**🎉 BACKEND-001 and BACKEND-002 are production-ready and fully tested!**
+**🎉 BACKEND-001, BACKEND-002, and BACKEND-005 are implemented and verified!**
