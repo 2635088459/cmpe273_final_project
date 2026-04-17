@@ -1,4 +1,4 @@
-# 🎉 BACKEND-001, BACKEND-002 & BACKEND-005 Implementation Complete!
+# 🎉 BACKEND-001 Through BACKEND-005 Implementation Status
 
 ## ✅ Successfully Implemented Services
 
@@ -28,6 +28,30 @@
 - ✅ Message routing to primary-data and cache-cleanup queues
 - ✅ Event consumer service ready for step result processing
 - ✅ Error handling for message processing failures
+
+### BACKEND-003: Primary Data Service ✅
+**Status:** ✅ COMPLETED  
+**Story Points:** 5  
+**Technology Stack:** NestJS + TypeORM + PostgreSQL + RabbitMQ  
+
+**Features Implemented:**
+- ✅ Dedicated `primary-data-service` microservice
+- ✅ Consumes deletion request events from RabbitMQ
+- ✅ Deletes subject data from PostgreSQL
+- ✅ Publishes step success and failure events
+- ✅ Integrated with distributed tracing
+
+### BACKEND-004: Cache Cleanup Service ✅
+**Status:** ✅ COMPLETED  
+**Story Points:** 3  
+**Technology Stack:** NestJS + Redis + RabbitMQ  
+
+**Features Implemented:**
+- ✅ Dedicated `cache-cleanup-service` microservice
+- ✅ Consumes deletion request events from RabbitMQ
+- ✅ Removes cached subject data from Redis
+- ✅ Publishes step success and failure events
+- ✅ Supports retry and failure-path demo behavior
 
 ### BACKEND-005: Proof Service ✅
 **Status:** ✅ COMPLETED  
@@ -107,9 +131,9 @@ export class ProofController {
 - ✅ Message queue operation tracing
 - ✅ Cross-service correlation via trace_id
 
-## 📊 Integration Test Results
+## 📊 Verification Status
 
-**All 13 Tests Passed (100% Success Rate)**
+**Backend implementation verified with real service runs**
 
 ### Infrastructure Validation ✅
 - Backend service accessible at http://localhost:3001
@@ -140,8 +164,14 @@ export class ProofController {
 
 ### Observability ✅
 - Jaeger UI accessible at http://localhost:16686
-- Backend service traces visible in Jaeger
+- Traces visible for backend, primary-data-service, cache-cleanup-service, and proof-service
 - Distributed tracing working across requests
+
+### TEST-002 Tracing Verification ✅
+- Jaeger service discovery verified for all backend microservices
+- Real workflow traces confirmed through Jaeger API and UI
+- Helper script added at `infra/test-tracing-integration.sh`
+- Script creates a deletion request and checks trace availability for all 4 services
 
 ## 🚀 Service Endpoints
 
@@ -162,6 +192,8 @@ export class ProofController {
 - ✅ `erasegraph-redis` - Cache (port 6379)
 - ✅ `erasegraph-rabbitmq` - Message Queue (ports 5672/15672)
 - ✅ `erasegraph-jaeger` - Tracing (port 16686)
+- ✅ `erasegraph-primary-data-service` - Primary data deletion worker
+- ✅ `erasegraph-cache-cleanup-service` - Cache cleanup worker
 - ✅ `erasegraph-proof-service` - Proof API + audit consumer (port 3004)
 
 **Health Status:** All containers healthy and communicating
@@ -188,22 +220,25 @@ backend/
 └── test-backend-integration.sh # Comprehensive test suite
 ```
 
-## 🎯 Next Steps
+## 🎯 Current Status
 
-**Ready for Implementation:**
-- ✅ **BACKEND-003**: Primary Data Service (can start immediately)
-- ✅ **BACKEND-004**: Cache Cleanup Service  
-- ✅ **FRONTEND-001**: React Dashboard Development
-
-**Completed in this update:**
+**Completed backend stories:**
+- ✅ **BACKEND-001**: Deletion Request Service
+- ✅ **BACKEND-002**: Event Publishing & RabbitMQ Integration
+- ✅ **BACKEND-003**: Primary Data Service
+- ✅ **BACKEND-004**: Cache Cleanup Service
 - ✅ **BACKEND-005**: Proof Service
+
+**Testing status:**
+- ✅ **TEST-002**: Tracing verification completed
+- ⚠️ **TEST-001**: Not fully complete yet because the full frontend-driven demo flow is not finished
 
 **Infrastructure Foundation Complete:**
 - Database schema operational
 - Message queue routing configured  
 - Distributed tracing functional
 - API documentation generated
-- Integration tests passing
+- Proof event querying operational
 
 ## 🔧 Development Workflow
 
@@ -217,6 +252,13 @@ docker-compose up -d
 ```bash
 cd backend  
 ./test-backend-integration.sh
+```
+
+**Run tracing verification:**
+```bash
+cd infra
+chmod +x test-tracing-integration.sh
+./test-tracing-integration.sh
 ```
 
 **View Logs:**
@@ -243,4 +285,4 @@ curl http://localhost:3004/proof/{request_id}
 
 ---
 
-**🎉 BACKEND-001, BACKEND-002, and BACKEND-005 are implemented and verified!**
+**🎉 BACKEND-001, BACKEND-002, BACKEND-003, BACKEND-004, and BACKEND-005 are implemented. TEST-002 tracing verification is also complete.**
