@@ -57,12 +57,14 @@ CREATE TABLE IF NOT EXISTS proof_events (
     request_id     UUID          NOT NULL REFERENCES deletion_requests(id) ON DELETE CASCADE,
     service_name   VARCHAR(50)   NOT NULL,
     event_type     VARCHAR(50)   NOT NULL,
+    dedupe_key     VARCHAR(255)  NOT NULL,
     payload        JSONB         NOT NULL DEFAULT '{}',
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_proof_request ON proof_events (request_id);
 CREATE INDEX idx_proof_service ON proof_events (service_name);
+CREATE UNIQUE INDEX uq_proof_dedupe_key ON proof_events (dedupe_key);
 
 -- ────────────────────────────────────────────────────────────
 -- Table: users (sample data for demo / testing)
