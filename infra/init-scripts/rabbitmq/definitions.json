@@ -1,0 +1,151 @@
+{
+  "rabbit_version": "3.13",
+  "users": [],
+  "vhosts": [
+    { "name": "/" }
+  ],
+  "permissions": [],
+  "topic_permissions": [],
+  "parameters": [],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "retry-policy",
+      "pattern": "^erasegraph\\.retry\\.",
+      "apply-to": "queues",
+      "definition": {
+        "message-ttl": 30000,
+        "dead-letter-exchange": "erasegraph.events",
+        "dead-letter-routing-key": "deletion.requested"
+      },
+      "priority": 0
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "erasegraph.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "erasegraph.retry",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "erasegraph.deletion-requests.primary-data",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "erasegraph.deletion-requests.cache-cleanup",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "erasegraph.step-results",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "erasegraph.proof-events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "erasegraph.retry.cache-cleanup",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "erasegraph.events",
+        "x-dead-letter-routing-key": "deletion.requested.cache"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.deletion-requests.primary-data",
+      "destination_type": "queue",
+      "routing_key": "deletion.requested",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.deletion-requests.cache-cleanup",
+      "destination_type": "queue",
+      "routing_key": "deletion.requested",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.step-results",
+      "destination_type": "queue",
+      "routing_key": "step.succeeded",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.step-results",
+      "destination_type": "queue",
+      "routing_key": "step.failed",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.proof-events",
+      "destination_type": "queue",
+      "routing_key": "step.succeeded",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.proof-events",
+      "destination_type": "queue",
+      "routing_key": "step.failed",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.retry",
+      "vhost": "/",
+      "destination": "erasegraph.retry.cache-cleanup",
+      "destination_type": "queue",
+      "routing_key": "retry.cache-cleanup",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.deletion-requests.cache-cleanup",
+      "destination_type": "queue",
+      "routing_key": "deletion.requested.cache",
+      "arguments": {}
+    }
+  ]
+}
