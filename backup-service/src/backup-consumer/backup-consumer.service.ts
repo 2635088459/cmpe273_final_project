@@ -1,9 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import * as amqp from 'amqplib';
-import { User } from '../entities/user.entity';
 import {
   DeletionRequestedEvent,
   DeletionStepSucceededEvent,
@@ -11,26 +8,29 @@ import {
   EventTypes,
 } from '../types/events';
 
-// Routing keys that match the RabbitMQ bindings in definitions.json
+const EXCHANGE_NAME = 'erasegraph.events';
+const CONSUME_QUEUE = 'erasegraph.deletion-requests.backup';
 const ROUTING_KEY_STEP_SUCCEEDED = 'step.succeeded';
 const ROUTING_KEY_STEP_FAILED = 'step.failed';
-const EXCHANGE_NAME = 'erasegraph.events';
-const CONSUME_QUEUE = 'erasegraph.deletion-requests.primary-data';
-const SERVICE_NAME = 'primary_data';
-const STEP_NAME = 'primary_data';
+const SERVICE_NAME = 'backup';
+const STEP_NAME = 'backup';
 
+/**
+ * BackupConsumerService
+ *
+ * Consumes DeletionRequested events and simulates purging backup records
+ * for the given subject. In a real system this would call a backup storage
+ * API (S3, GCS, etc.). Here we log the operation and always succeed so the
+ * overall flow can reach COMPLETED status.
+ */
 @Injectable()
-export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(DeletionConsumerService.name);
+export class BackupConsumerService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(BackupConsumerService.name);
   private connection: any = null;
   private consumerChannel: any = null;
   private publisherChannel: any = null;
 
-  constructor(
-    private configService: ConfigService,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-  ) {}
+  constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     await this.connect();
@@ -40,6 +40,10 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     await this.disconnect();
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // Connection helpers
+  // ─────────────────────────────────────────────────────────────
 
   private async connect() {
     const url =
@@ -64,9 +68,13 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
       if (this.publisherChannel) await this.publisherChannel.close();
       if (this.connection) await this.connection.close();
     } catch (err) {
-      this.logger.error('Error disconnecting', err);
+      this.logger.error('Error disconnecting from RabbitMQ', err);
     }
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // Consumer
+  // ─────────────────────────────────────────────────────────────
 
   private async startConsuming() {
     await this.consumerChannel.consume(
@@ -78,11 +86,10 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
           this.logger.log(
             `Received DeletionRequested for subject_id=${event.subject_id} request_id=${event.request_id}`,
           );
-          await this.processDeletion(event);
+          await this.processBackupDeletion(event);
           this.consumerChannel.ack(msg);
         } catch (err) {
           this.logger.error('Failed to process message', err);
-          // nack without requeue — prevent poison-pill loops
           this.consumerChannel.nack(msg, false, false);
         }
       },
@@ -92,32 +99,21 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`Consuming from ${CONSUME_QUEUE}`);
   }
 
-  private async processDeletion(event: DeletionRequestedEvent) {
+  // ─────────────────────────────────────────────────────────────
+  // Business logic
+  // ─────────────────────────────────────────────────────────────
+
+  private async processBackupDeletion(event: DeletionRequestedEvent) {
     const { request_id, subject_id, trace_id } = event;
 
     try {
-      // Try deleting by id (only if subject_id looks like a UUID), then fall back to username/email
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const byId = uuidRegex.test(subject_id)
-        ? await this.userRepository.findOne({ where: { id: subject_id } })
-        : null;
-      const byUsername = byId ? null : await this.userRepository.findOne({ where: { username: subject_id } });
-      const user = byId || byUsername;
+      // Simulate backup purge latency (50-200ms)
+      const latency = 50 + Math.floor(Math.random() * 150);
+      await new Promise((resolve) => setTimeout(resolve, latency));
 
-      let deletedRecords = 0;
-
-      if (user) {
-        await this.userRepository.remove(user);
-        deletedRecords = 1;
-        this.logger.log(
-          `Deleted user id=${user.id} username=${user.username} for request_id=${request_id}`,
-        );
-      } else {
-        // Subject not found — treat as success (idempotent: already deleted or never existed)
-        this.logger.warn(
-          `No user found for subject_id=${subject_id} — treating as already deleted`,
-        );
-      }
+      this.logger.log(
+        `Purged backup records for subject_id=${subject_id} request_id=${request_id} (simulated, ${latency}ms)`,
+      );
 
       await this.publishSucceeded({
         request_id,
@@ -125,21 +121,29 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
         service_name: SERVICE_NAME,
         trace_id,
         timestamp: new Date().toISOString(),
-        metadata: { deleted_records: deletedRecords, subject_id },
+        metadata: {
+          subject_id,
+          backup_records_removed: 1,
+          storage_backend: 'simulated',
+        },
       });
     } catch (err: any) {
-      this.logger.error(`Deletion failed for request_id=${request_id}`, err);
+      this.logger.error(`Backup deletion failed for request_id=${request_id}`, err);
       await this.publishFailed({
         request_id,
         step_name: STEP_NAME,
         service_name: SERVICE_NAME,
         trace_id,
         timestamp: new Date().toISOString(),
-        error_message: err.message || 'Unknown error during primary data deletion',
-        error_code: 'PRIMARY_DATA_DELETION_FAILED',
+        error_message: err.message || 'Unknown error during backup deletion',
+        error_code: 'BACKUP_DELETION_FAILED',
       });
     }
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // Publishers
+  // ─────────────────────────────────────────────────────────────
 
   private async publishSucceeded(event: DeletionStepSucceededEvent) {
     const message = { eventType: EventTypes.DELETION_STEP_SUCCEEDED, ...event };
@@ -149,7 +153,10 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
       Buffer.from(JSON.stringify(message)),
       {
         persistent: true,
-        headers: { 'event-type': EventTypes.DELETION_STEP_SUCCEEDED, 'trace-id': event.trace_id },
+        headers: {
+          'event-type': EventTypes.DELETION_STEP_SUCCEEDED,
+          'trace-id': event.trace_id,
+        },
       },
     );
     this.logger.log(`Published DeletionStepSucceeded for request_id=${event.request_id}`);
@@ -163,7 +170,10 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
       Buffer.from(JSON.stringify(message)),
       {
         persistent: true,
-        headers: { 'event-type': EventTypes.DELETION_STEP_FAILED, 'trace-id': event.trace_id },
+        headers: {
+          'event-type': EventTypes.DELETION_STEP_FAILED,
+          'trace-id': event.trace_id,
+        },
       },
     );
     this.logger.log(`Published DeletionStepFailed for request_id=${event.request_id}`);
