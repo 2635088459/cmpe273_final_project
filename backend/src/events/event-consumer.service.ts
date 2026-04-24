@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import * as amqp from 'amqplib';
 import { 
   DeletionStepSucceededEvent, 
@@ -124,12 +124,20 @@ export class EventConsumerService {
       );
 
       // Create proof event
-      await this.proofEventRepository.save({
+      await this.saveProofEvent({
         request_id,
         service_name,
         event_type: EventTypes.DELETION_STEP_SUCCEEDED,
+        dedupe_key: this.buildDedupeKey(
+          request_id,
+          service_name,
+          EventTypes.DELETION_STEP_SUCCEEDED,
+          step_name,
+          event.timestamp
+        ),
         payload: {
           step_name,
+          trace_id: event.trace_id,
           metadata,
           timestamp: event.timestamp
         }
@@ -155,12 +163,20 @@ export class EventConsumerService {
       );
 
       // Create proof event
-      await this.proofEventRepository.save({
+      await this.saveProofEvent({
         request_id,
         service_name,
         event_type: EventTypes.DELETION_STEP_FAILED,
+        dedupe_key: this.buildDedupeKey(
+          request_id,
+          service_name,
+          EventTypes.DELETION_STEP_FAILED,
+          step_name,
+          event.timestamp
+        ),
         payload: {
           step_name,
+          trace_id: event.trace_id,
           error_message,
           metadata,
           timestamp: event.timestamp
@@ -172,5 +188,43 @@ export class EventConsumerService {
       this.logger.error(`Error handling step failed event:`, error);
       throw error;
     }
+  }
+
+  private buildDedupeKey(
+    requestId: string,
+    serviceName: string,
+    eventType: string,
+    stepName: string,
+    timestamp: string
+  ): string {
+    return `${requestId}:${serviceName}:${eventType}:${stepName}:${timestamp}`;
+  }
+
+  private async saveProofEvent(event: {
+    request_id: string;
+    service_name: string;
+    event_type: string;
+    dedupe_key: string;
+    payload: Record<string, any>;
+  }): Promise<void> {
+    try {
+      await this.proofEventRepository.save(event);
+    } catch (error) {
+      if (this.isDuplicateProofEvent(error)) {
+        this.logger.warn(`Duplicate proof event ignored for dedupe_key=${event.dedupe_key}`);
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  private isDuplicateProofEvent(error: unknown): boolean {
+    if (!(error instanceof QueryFailedError)) {
+      return false;
+    }
+
+    const driverError = (error as any).driverError;
+    return driverError?.code === '23505';
   }
 }

@@ -5,6 +5,7 @@ import { DeletionRequestModule } from './deletion-request/deletion-request.modul
 import { EventPublisherService } from './events/event-publisher.service';
 import { EventConsumerService } from './events/event-consumer.service';
 import { DeletionRequest, DeletionStep, ProofEvent, User } from './database/entities';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -28,7 +29,8 @@ import { DeletionRequest, DeletionStep, ProofEvent, User } from './database/enti
       inject: [ConfigService]
     }),
     TypeOrmModule.forFeature([ProofEvent]), // For EventConsumerService
-    DeletionRequestModule
+    DeletionRequestModule,
+    UsersModule
   ],
   providers: [EventPublisherService, EventConsumerService]
 })

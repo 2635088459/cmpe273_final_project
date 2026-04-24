@@ -4,6 +4,7 @@ import {
   Get, 
   Body, 
   Param, 
+  Query,
   ValidationPipe,
   HttpCode,
   HttpStatus
@@ -12,14 +13,17 @@ import {
   ApiTags, 
   ApiOperation, 
   ApiResponse, 
-  ApiParam 
+  ApiParam,
+  ApiQuery
 } from '@nestjs/swagger';
 import { DeletionRequestService } from './deletion-request.service';
 import { 
   CreateDeletionRequestDto,
   DeletionRequestCreatedDto,
   DeletionRequestResponseDto,
-  DeletionProofResponseDto 
+  DeletionProofResponseDto,
+  ListDeletionRequestsQueryDto,
+  ListDeletionRequestsResponseDto
 } from './dto';
 
 @ApiTags('Deletion Requests')
@@ -46,6 +50,26 @@ export class DeletionRequestController {
     @Body(ValidationPipe) dto: CreateDeletionRequestDto
   ): Promise<DeletionRequestCreatedDto> {
     return this.deletionRequestService.createDeletionRequest(dto);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'List deletion requests',
+    description: 'Returns recent deletion requests with optional filtering and search for dashboard use'
+  })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by request status' })
+  @ApiQuery({ name: 'subject_id', required: false, description: 'Filter by exact subject ID' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by request ID or subject ID' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Maximum number of requests to return' })
+  @ApiResponse({
+    status: 200,
+    description: 'Filtered list of deletion requests',
+    type: ListDeletionRequestsResponseDto
+  })
+  async listDeletionRequests(
+    @Query(ValidationPipe) query: ListDeletionRequestsQueryDto
+  ): Promise<ListDeletionRequestsResponseDto> {
+    return this.deletionRequestService.listDeletionRequests(query);
   }
 
   @Get(':id')

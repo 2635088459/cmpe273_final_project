@@ -1,158 +1,257 @@
-import { useState } from "react";
-import API from "../services/api";
-
-interface DeletionStep {
-  step_name: string;
-  status: string;
-  error_message: string | null;
-}
-
-interface DeletionStatus {
-  id: string;
-  subject_id: string;
-  status: string;
-  trace_id: string;
-  created_at: string;
-  completed_at: string | null;
-  steps: DeletionStep[];
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  COMPLETED: "#16a34a",
-  PENDING: "#d97706",
-  FAILED: "#dc2626",
-  SUCCEEDED: "#16a34a",
-  IN_PROGRESS: "#2563eb",
-};
+import axios from "axios";
+import { FormEvent, useState } from "react";
+import API, {
+  createDeletionRequest,
+  CreateDeletionRequestResponse,
+} from "../services/api";
 
 function SubmitDeletion() {
   const [subjectId, setSubjectId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [requestId, setRequestId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [statusResult, setStatusResult] = useState<DeletionStatus | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdRequest, setCreatedRequest] =
+    useState<CreateDeletionRequestResponse | null>(null);
 
-  const handleSubmit = async () => {
-    if (!subjectId.trim()) {
-      setError("Subject ID is required");
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedSubjectId = subjectId.trim();
+
+    if (!normalizedSubjectId) {
+      setErrorMessage("Enter a subject ID to start the deletion workflow.");
       return;
     }
-    setError(null);
-    setRequestId(null);
-    setStatusResult(null);
-    setLoading(true);
-    try {
-      const res = await API.post("/deletions", { subject_id: subjectId.trim() });
-      setRequestId(res.data.request_id);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to submit deletion request");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleCheckStatus = async () => {
-    if (!requestId) return;
-    setStatusLoading(true);
-    setStatusResult(null);
+    setIsSubmitting(true);
+    setErrorMessage("");
+    setCreatedRequest(null);
+
     try {
-      const res = await API.get(`/deletions/${requestId}`);
-      setStatusResult(res.data);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to fetch status");
+      const response = await createDeletionRequest({
+        subject_id: normalizedSubjectId,
+      });
+      setCreatedRequest(response);
+      setSubjectId("");
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const apiMessage =
+          typeof error.response?.data?.message === "string"
+            ? error.response.data.message
+            : Array.isArray(error.response?.data?.message)
+              ? error.response?.data?.message.join(", ")
+              : "";
+
+        setErrorMessage(
+          apiMessage ||
+            `We couldn't submit the request. Make sure the backend is running on ${API.defaults.baseURL}.`
+        );
+      } else {
+        setErrorMessage("Something unexpected happened while submitting the request.");
+      }
     } finally {
-      setStatusLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
-      <h1>Submit Deletion Request</h1>
+    <div className="page-grid">
+      <section className="hero-panel">
+        <div className="hero-spotlight">
+          <div className="hero-copy">
+            <span className="eyebrow">Deletion requests</span>
+            <h1>Submit a deletion request and capture the identifiers needed for follow-up.</h1>
+            <p>
+              Use this form to initiate a deletion workflow, receive the request
+              and trace identifiers, and preserve the information required for
+              tracking and verification.
+            </p>
+          </div>
 
-      <input
-        placeholder="Enter Subject ID (username or UUID)"
-        value={subjectId}
-        onChange={(e) => setSubjectId(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-        style={{ padding: "8px", width: "100%", marginBottom: "10px", boxSizing: "border-box" }}
-      />
-      <br />
-      <button
-        onClick={handleSubmit}
-        disabled={loading}
-        style={{ padding: "8px 16px", cursor: loading ? "not-allowed" : "pointer" }}
-      >
-        {loading ? "Submitting..." : "Submit"}
-      </button>
-
-      {error && (
-        <p style={{ marginTop: "10px", color: "#dc2626" }}>{error}</p>
-      )}
-
-      {requestId && (
-        <div style={{ marginTop: "16px", padding: "12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "6px" }}>
-          <p style={{ margin: 0, color: "#16a34a" }}>
-            ✓ Request Created Successfully
-          </p>
-          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#374151" }}>
-            <strong>Request ID:</strong> {requestId}
-          </p>
-          <button
-            onClick={handleCheckStatus}
-            disabled={statusLoading}
-            style={{ marginTop: "10px", padding: "6px 14px", cursor: statusLoading ? "not-allowed" : "pointer" }}
-          >
-            {statusLoading ? "Checking..." : "Check Status"}
-          </button>
+          <aside className="hero-side-panel">
+            <span className="hero-side-label">Request overview</span>
+            <div className="hero-side-value">
+              Request <span>submission</span>
+            </div>
+            <p className="hero-side-copy">
+              A submitted request creates a traceable record that can be used
+              for downstream status review, operational follow-up, and proof
+              verification.
+            </p>
+            <div className="hero-side-list">
+              <div className="hero-side-row">
+                <div className="hero-side-step">01</div>
+                <div className="hero-side-content">
+                  <strong>Request capture</strong>
+                  <span>
+                    Register the subject identifier and create the request
+                    record for processing.
+                  </span>
+                </div>
+              </div>
+              <div className="hero-side-row">
+                <div className="hero-side-step">02</div>
+                <div className="hero-side-content">
+                  <strong>Identifier generation</strong>
+                  <span>
+                    Store the request ID and trace ID returned after
+                    submission for later tracking.
+                  </span>
+                </div>
+              </div>
+              <div className="hero-side-row">
+                <div className="hero-side-step">03</div>
+                <div className="hero-side-content">
+                  <strong>Workflow follow-up</strong>
+                  <span>
+                    Use the saved identifiers to review progress and validate
+                    completion in the dashboard.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </aside>
         </div>
-      )}
+      </section>
 
-      {statusResult && (
-        <div style={{ marginTop: "16px", padding: "12px", border: "1px solid #e5e7eb", borderRadius: "6px" }}>
-          <p style={{ margin: "0 0 8px" }}>
-            <strong>Overall Status: </strong>
-            <span style={{ color: STATUS_COLORS[statusResult.status] || "#374151", fontWeight: "bold" }}>
-              {statusResult.status}
-            </span>
-          </p>
-          <p style={{ margin: "0 0 8px", fontSize: "13px", color: "#6b7280" }}>
-            Subject: <strong>{statusResult.subject_id}</strong>
-            {statusResult.completed_at && (
-              <> · Completed: {new Date(statusResult.completed_at).toLocaleTimeString()}</>
-            )}
-          </p>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid #e5e7eb" }}>Step</th>
-                <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid #e5e7eb" }}>Status</th>
-                <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid #e5e7eb" }}>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {statusResult.steps.map((step) => (
-                <tr key={step.step_name}>
-                  <td style={{ padding: "6px 8px", borderBottom: "1px solid #f3f4f6" }}>{step.step_name}</td>
-                  <td style={{ padding: "6px 8px", borderBottom: "1px solid #f3f4f6", color: STATUS_COLORS[step.status] || "#374151", fontWeight: "bold" }}>
-                    {step.status}
-                  </td>
-                  <td style={{ padding: "6px 8px", borderBottom: "1px solid #f3f4f6", color: "#6b7280" }}>
-                    {step.error_message || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button
-            onClick={handleCheckStatus}
-            disabled={statusLoading}
-            style={{ marginTop: "10px", padding: "6px 14px", cursor: statusLoading ? "not-allowed" : "pointer", fontSize: "12px" }}
-          >
-            {statusLoading ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
-      )}
+      <section className="submit-grid">
+        <article className="form-card glow-card">
+          <div className="form-shell">
+            <div className="form-header-row">
+              <div className="section-heading">
+                <h2>Submit deletion request</h2>
+                <p>
+                  Enter the user or entity identifier exactly as stored in your
+                  system. A successful request returns a unique request ID and
+                  trace ID.
+                </p>
+              </div>
+            </div>
+
+            <form className="form-layout" onSubmit={handleSubmit}>
+              <div className="field-grid">
+                <div className="form-field">
+                  <label htmlFor="subject-id">Subject ID</label>
+                  <input
+                    id="subject-id"
+                    className="text-input"
+                    placeholder="user_10293 or customer-8f3a"
+                    value={subjectId}
+                    onChange={(event) => setSubjectId(event.target.value)}
+                    autoComplete="off"
+                  />
+                  <span className="subtle-copy">
+                    Example values: internal user ID, customer reference, or tenant
+                    subject key.
+                  </span>
+                </div>
+              </div>
+
+              {errorMessage ? (
+                <div className="submit-feedback error" role="alert">
+                  <strong>Submission failed</strong>
+                  <span>{errorMessage}</span>
+                </div>
+              ) : null}
+
+              {createdRequest ? (
+                <div className="submit-feedback success" role="status">
+                  <strong>Request accepted</strong>
+                  <span>{createdRequest.message}</span>
+                </div>
+              ) : null}
+
+              <div className="form-actions">
+                <button
+                  type="submit"
+                  className="button-primary"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Submitting..." : "Create request"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </article>
+
+        <aside className="support-grid">
+          <article className="summary-card glow-card">
+            <h3>What happens next</h3>
+            <div className="process-list">
+              <div className="process-row">
+                <span className="process-index">1</span>
+                <div className="process-copy">
+                  <strong>Request accepted</strong>
+                  <span>The backend returns a request ID and trace ID.</span>
+                </div>
+              </div>
+              <div className="process-row">
+                <span className="process-index">2</span>
+                <div className="process-copy">
+                  <strong>Deletion workflow</strong>
+                  <span>Primary data and cache cleanup services process the request.</span>
+                </div>
+              </div>
+              <div className="process-row">
+                <span className="process-index">3</span>
+                <div className="process-copy">
+                  <strong>Status + proof</strong>
+                  <span>Use the saved IDs for dashboard and audit tracking.</span>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article className="metric-card summary-card glow-card">
+            <div className="metric-copy">
+              <strong>202</strong>
+              <p>Expected response when the backend accepts a new request.</p>
+            </div>
+          </article>
+
+          {createdRequest ? (
+            <article className="detail-card glow-card">
+              <div className="status-detail-top">
+                <div>
+                  <h3>Created request</h3>
+                  <p className="status-meta">
+                    Keep these values for status tracking and proof lookup.
+                  </p>
+                </div>
+                <span className="status-chip pending">
+                  {createdRequest.status.toLowerCase()}
+                </span>
+              </div>
+
+              <div className="timeline-list">
+                <div className="timeline-item">
+                  <span className="timeline-dot" />
+                  <div>
+                    <strong>Request ID</strong>
+                    <h4 className="mono">{createdRequest.request_id}</h4>
+                  </div>
+                </div>
+                <div className="timeline-item">
+                  <span className="timeline-dot" />
+                  <div>
+                    <strong>Trace ID</strong>
+                    <h4 className="mono">{createdRequest.trace_id}</h4>
+                  </div>
+                </div>
+              </div>
+            </article>
+          ) : (
+            <article className="empty-state">
+              <div>
+                <h3>Awaiting submission</h3>
+                <p>
+                  Once the request is accepted, the generated request ID and
+                  trace ID will appear here.
+                </p>
+              </div>
+            </article>
+          )}
+        </aside>
+      </section>
     </div>
   );
 }

@@ -15,6 +15,9 @@ export class ProofEvent {
   @Column({ type: 'varchar', length: 50 })
   event_type: string;
 
+  @Column({ type: 'varchar', length: 255 })
+  dedupe_key: string;
+
   @Column({ type: 'jsonb', default: '{}' })
   payload: any;
 
