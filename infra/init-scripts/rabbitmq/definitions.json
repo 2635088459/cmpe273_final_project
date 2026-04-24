@@ -57,6 +57,13 @@
       "arguments": {}
     },
     {
+      "name": "erasegraph.deletion-requests.backup",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
       "name": "erasegraph.step-results",
       "vhost": "/",
       "durable": true,
@@ -95,6 +102,14 @@
       "source": "erasegraph.events",
       "vhost": "/",
       "destination": "erasegraph.deletion-requests.cache-cleanup",
+      "destination_type": "queue",
+      "routing_key": "deletion.requested",
+      "arguments": {}
+    },
+    {
+      "source": "erasegraph.events",
+      "vhost": "/",
+      "destination": "erasegraph.deletion-requests.backup",
       "destination_type": "queue",
       "routing_key": "deletion.requested",
       "arguments": {}
