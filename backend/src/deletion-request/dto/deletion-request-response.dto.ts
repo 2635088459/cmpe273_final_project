@@ -5,7 +5,7 @@ export class DeletionStepResponseDto {
   @ApiProperty({ description: 'Unique step identifier' })
   id: string;
 
-  @ApiProperty({ description: 'Step name (e.g., "primary_data", "cache", "backup")' })
+  @ApiProperty({ description: 'Step name (e.g., "primary_data", "cache")' })
   step_name: string;
 
   @ApiProperty({ 

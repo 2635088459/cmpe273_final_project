@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { 
   DeletionRequest, 
@@ -13,7 +13,9 @@ import {
   CreateDeletionRequestDto,
   DeletionRequestResponseDto,
   DeletionRequestCreatedDto,
-  DeletionProofResponseDto 
+  DeletionProofResponseDto,
+  ListDeletionRequestsQueryDto,
+  ListDeletionRequestsResponseDto
 } from './dto';
 import { EventPublisherService } from '../events/event-publisher.service';
 
@@ -48,8 +50,7 @@ export class DeletionRequestService {
     // Create initial deletion steps
     const steps = [
       { request_id: savedRequest.id, step_name: 'primary_data' },
-      { request_id: savedRequest.id, step_name: 'cache' },
-      { request_id: savedRequest.id, step_name: 'backup' }
+      { request_id: savedRequest.id, step_name: 'cache' }
     ];
 
     const deletionSteps = steps.map(step => 
@@ -76,6 +77,61 @@ export class DeletionRequestService {
       status: 'PENDING',
       message: 'Deletion request created successfully',
       trace_id: traceId
+    };
+  }
+
+  async listDeletionRequests(
+    query: ListDeletionRequestsQueryDto
+  ): Promise<ListDeletionRequestsResponseDto> {
+    const limit = query.limit ?? 25;
+
+    const queryBuilder = this.deletionRequestRepository
+      .createQueryBuilder('request')
+      .leftJoinAndSelect('request.steps', 'steps')
+      .orderBy('request.created_at', 'DESC')
+      .addOrderBy('steps.updated_at', 'ASC')
+      .take(limit);
+
+    if (query.status) {
+      queryBuilder.andWhere('request.status = :status', { status: query.status });
+    }
+
+    if (query.subject_id) {
+      queryBuilder.andWhere('request.subject_id = :subjectId', {
+        subjectId: query.subject_id
+      });
+    }
+
+    if (query.search) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('request.id::text ILIKE :search', { search: `%${query.search}%` }).orWhere(
+            'request.subject_id ILIKE :search',
+            { search: `%${query.search}%` }
+          );
+        })
+      );
+    }
+
+    const requests = await queryBuilder.getMany();
+
+    return {
+      items: requests.map((request) => ({
+        id: request.id,
+        subject_id: request.subject_id,
+        status: request.status,
+        trace_id: request.trace_id,
+        created_at: request.created_at,
+        completed_at: request.completed_at,
+        steps: request.steps.map((step) => ({
+          id: step.id,
+          step_name: step.step_name,
+          status: step.status,
+          error_message: step.error_message,
+          updated_at: step.updated_at
+        }))
+      })),
+      count: requests.length
     };
   }
 
