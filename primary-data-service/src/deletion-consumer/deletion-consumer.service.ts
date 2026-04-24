@@ -18,6 +18,7 @@ const EXCHANGE_NAME = 'erasegraph.events';
 const CONSUME_QUEUE = 'erasegraph.deletion-requests.primary-data';
 const SERVICE_NAME = 'primary_data';
 const STEP_NAME = 'primary_data';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
@@ -96,12 +97,13 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
     const { request_id, subject_id, trace_id } = event;
 
     try {
-      // Try deleting by id (only if subject_id looks like a UUID), then fall back to username/email
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const byId = uuidRegex.test(subject_id)
+      // Try deleting by id first when the subject looks like a UUID, otherwise fall back to username.
+      const byId = UUID_REGEX.test(subject_id)
         ? await this.userRepository.findOne({ where: { id: subject_id } })
         : null;
-      const byUsername = byId ? null : await this.userRepository.findOne({ where: { username: subject_id } });
+      const byUsername = byId
+        ? null
+        : await this.userRepository.findOne({ where: { username: subject_id } });
       const user = byId || byUsername;
 
       let deletedRecords = 0;
@@ -110,7 +112,7 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
         await this.userRepository.remove(user);
         deletedRecords = 1;
         this.logger.log(
-          `Deleted user id=${user.id} username=${user.username} for request_id=${request_id}`,
+          `Deleted user subject_id=${subject_id} username=${user.username} for request_id=${request_id}`,
         );
       } else {
         // Subject not found — treat as success (idempotent: already deleted or never existed)
