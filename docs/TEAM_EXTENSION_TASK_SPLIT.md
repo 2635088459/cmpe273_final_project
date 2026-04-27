@@ -15,7 +15,7 @@ The basic six-step flow is working. To make the final project stronger, we want 
 
 | Member | Code Tasks | Doc Task | Demo Focus |
 |---|---|---|---|
-| Member 1 | Retry/DLQ, idempotency, failure injection, **circuit breaker** | Failure/retry design doc | Show failure → retry → DLQ → circuit open |
+| Vritika Malhotra | Retry/DLQ, idempotency, failure injection, **circuit breaker** | Failure/retry design doc | Show failure → retry → DLQ → circuit open |
 | Member 2 | Search cleanup service, analytics cleanup service (delayed), tamper-evident proof hash chain, **notification service** | Consistency tradeoffs doc | Show multi-service deletion + GDPR notification |
 | Haoyuan Shan | Kubernetes manifests, pod recovery demo, metrics endpoint, **rate limiting + health aggregation** | Kubernetes deployment guide | Show K8s deployment + pod restart + health dashboard |
 | Member 4 | Dashboard upgrade (all steps + auto-refresh), proof timeline view, real-time SSE status updates, **history page + admin panel** | Subject resolution service design doc | Show full UI flow + proof verification + admin view |
