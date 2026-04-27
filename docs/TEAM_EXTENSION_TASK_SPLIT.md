@@ -24,7 +24,7 @@ Each member has 4 code tasks and 1 doc task.
 
 ---
 
-## Member 1 — Reliability
+## Vritika Malhotra
 
 ### CODE-REL-001: Retry Queue + Dead Letter Queue
 
