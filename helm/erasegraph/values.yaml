@@ -1,0 +1,91 @@
+# =============================================================
+# EraseGraph Helm Chart — values.yaml
+#
+# Override any of these in a custom values file:
+#   helm install erasegraph ./helm/erasegraph -f my-values.yaml
+#
+# Common overrides:
+#   --set backend.replicaCount=3
+#   --set images.tag=v1.2.0
+#   --set secrets.dbPassword=mySecret
+# =============================================================
+
+# ---------------------------------------------------------------------------
+# Namespace
+# ---------------------------------------------------------------------------
+namespace: erasegraph
+
+# ---------------------------------------------------------------------------
+# Image settings
+# All application images share the same tag (built by docker compose build).
+# Infrastructure images (postgres, redis, etc.) use their own fixed versions.
+# ---------------------------------------------------------------------------
+images:
+  tag: latest
+  pullPolicy: IfNotPresent
+  backend:        infra-backend
+  frontend:       infra-frontend
+  primaryData:    infra-primary-data-service
+  cacheCleanup:   infra-cache-cleanup-service
+  proofService:   infra-proof-service
+  backupService:  infra-backup-service
+
+# ---------------------------------------------------------------------------
+# Replica counts (override per environment)
+# ---------------------------------------------------------------------------
+replicaCount:
+  backend:          2   # 2 replicas demonstrates HA / pod self-healing
+  frontend:         1
+  primaryData:      1
+  cacheCleanup:     1
+  proofService:     1
+  backupService:    1
+
+# ---------------------------------------------------------------------------
+# Secrets  (base values — override in production with real secrets!)
+# ---------------------------------------------------------------------------
+secrets:
+  dbPassword:       "erasegraph_secret"
+  postgresPassword: "erasegraph_secret"
+  rabbitmqPassword: "erasegraph_secret"
+
+# ---------------------------------------------------------------------------
+# Application ConfigMap
+# ---------------------------------------------------------------------------
+config:
+  nodeEnv:                  "production"
+  dbHost:                   "postgres"
+  dbPort:                   "5432"
+  dbUsername:               "erasegraph"
+  dbDatabase:               "erasegraph"
+  redisUrl:                 "redis://redis:6379"
+  rabbitmqUrl:              "amqp://erasegraph:erasegraph_secret@rabbitmq:5672"
+  otlpTracesEndpoint:       "http://jaeger:4318/v1/traces"
+  jaegerEndpoint:           "http://jaeger:14268/api/traces"
+  simulateFailure:          "true"
+  primaryDataServiceUrl:    "http://primary-data-service:3002"
+  cacheCleanupServiceUrl:   "http://cache-cleanup-service:3003"
+  proofServiceUrl:          "http://proof-service:3004"
+  backupServiceUrl:         "http://backup-service:3005"
+
+# ---------------------------------------------------------------------------
+# Infrastructure images (pinned versions)
+# ---------------------------------------------------------------------------
+infra:
+  postgres:
+    image: postgres:16-alpine
+    storage: 1Gi
+  redis:
+    image: redis:7-alpine
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  host: erasegraph.local
+  className: nginx
