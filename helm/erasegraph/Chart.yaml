@@ -1,0 +1,16 @@
+apiVersion: v2
+name: erasegraph
+description: >
+  EraseGraph — Verifiable Deletion Propagation Across Microservices.
+  Deploys all backend services, frontend, and infrastructure (PostgreSQL,
+  Redis, RabbitMQ, Jaeger) into a single Kubernetes namespace.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - erasegraph
+  - gdpr
+  - deletion
+  - microservices
+maintainers:
+  - name: Haoyuan Shan

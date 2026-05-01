@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: erasegraph-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "erasegraph.labels" . | nindent 4 }}
+data:
+  NODE_ENV:                         {{ .Values.config.nodeEnv | quote }}
+  DB_HOST:                          {{ .Values.config.dbHost | quote }}
+  DB_PORT:                          {{ .Values.config.dbPort | quote }}
+  DB_USERNAME:                      {{ .Values.config.dbUsername | quote }}
+  DB_DATABASE:                      {{ .Values.config.dbDatabase | quote }}
+  REDIS_URL:                        {{ .Values.config.redisUrl | quote }}
+  RABBITMQ_URL:                     {{ .Values.config.rabbitmqUrl | quote }}
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: {{ .Values.config.otlpTracesEndpoint | quote }}
+  JAEGER_ENDPOINT:                  {{ .Values.config.jaegerEndpoint | quote }}
+  COLLECTOR_OTLP_ENABLED:           "true"
+  SIMULATE_FAILURE:                 {{ .Values.config.simulateFailure | quote }}
+  PRIMARY_DATA_SERVICE_URL:         {{ .Values.config.primaryDataServiceUrl | quote }}
+  CACHE_CLEANUP_SERVICE_URL:        {{ .Values.config.cacheCleanupServiceUrl | quote }}
+  PROOF_SERVICE_URL:                {{ .Values.config.proofServiceUrl | quote }}
+  BACKUP_SERVICE_URL:               {{ .Values.config.backupServiceUrl | quote }}

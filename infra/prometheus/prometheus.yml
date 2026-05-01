@@ -1,0 +1,14 @@
+# ============================================================
+# Prometheus scrape configuration for EraseGraph
+# ============================================================
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Scrape the EraseGraph backend /metrics/prometheus endpoint
+  - job_name: 'erasegraph-backend'
+    static_configs:
+      - targets: ['backend:3001']
+    metrics_path: '/metrics/prometheus'
+    scrape_interval: 15s
