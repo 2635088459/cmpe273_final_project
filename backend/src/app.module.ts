@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { DeletionRequestModule } from './deletion-request/deletion-request.module';
 import { EventPublisherService } from './events/event-publisher.service';
 import { EventConsumerService } from './events/event-consumer.service';
 import { DeletionRequest, DeletionStep, ProofEvent, User } from './database/entities';
 import { UsersModule } from './users/users.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { HealthAggregatorModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -29,9 +33,19 @@ import { UsersModule } from './users/users.module';
       inject: [ConfigService]
     }),
     TypeOrmModule.forFeature([ProofEvent]), // For EventConsumerService
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     DeletionRequestModule,
-    UsersModule
+    UsersModule,
+    MetricsModule,
+    HealthAggregatorModule,
   ],
-  providers: [EventPublisherService, EventConsumerService]
+  providers: [
+    EventPublisherService,
+    EventConsumerService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ]
 })
 export class AppModule {}
