@@ -714,6 +714,12 @@
   border-color: rgba(178, 111, 238, 0.24);
 }
 
+.step-chip.skipped_circuit_open {
+  background: rgba(118, 126, 140, 0.16);
+  color: #566071;
+  border-color: rgba(118, 126, 140, 0.28);
+}
+
 [data-theme="dark"] .status-chip.pending,
 [data-theme="dark"] .step-chip.pending {
   color: #f3c66d;
@@ -737,6 +743,10 @@
 
 [data-theme="dark"] .step-chip.retrying {
   color: #d0b0ff;
+}
+
+[data-theme="dark"] .step-chip.skipped_circuit_open {
+  color: #c7ced9;
 }
 
 .step-bar {

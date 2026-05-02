@@ -114,6 +114,8 @@ services:
       DB_DATABASE: ${POSTGRES_DB:-erasegraph}
       # RabbitMQ configuration
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      # Redis configuration for circuit breaker state
+      REDIS_URL: redis://redis:6379
       # OpenTelemetry configuration
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
@@ -182,12 +184,19 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3003
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
       # Set to "false" to disable intentional first-attempt failure
       SIMULATE_FAILURE: ${SIMULATE_FAILURE:-true}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
@@ -264,6 +273,32 @@ services:
       retries: 3
 
   # ────────────────────────────────────────────────────────────
+  # API Gateway — Optional REL task
+  # Validates X-Service-Token before proxying to backend
+  # ────────────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ../api-gateway-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-api-gateway
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-3007}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      BACKEND_URL: http://backend:3001
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-erasegraph_internal_token}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
   # Frontend — React SPA served via nginx
   # ────────────────────────────────────────────────────────────
   frontend:
@@ -280,7 +315,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:80 || exit 1"]
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

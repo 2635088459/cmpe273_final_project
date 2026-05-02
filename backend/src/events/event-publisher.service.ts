@@ -8,6 +8,7 @@ import {
   RoutingKeys,
   EventTypes 
 } from './types';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class EventPublisherService {
@@ -77,6 +78,7 @@ export class EventPublisherService {
       }
 
       const message = {
+        event_id: event.event_id || uuidv4(),
         eventType,
         timestamp: new Date().toISOString(),
         ...event
@@ -94,6 +96,7 @@ export class EventPublisherService {
           timestamp: Date.now(),
           headers: {
             'event-type': eventType,
+            'event-id': message.event_id,
             'request-id': event.request_id,
             'trace-id': event.trace_id
           }
