@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS deletion_steps (
     updated_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
 
     CONSTRAINT chk_step_status CHECK (
-        status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'RETRYING')
+        status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'RETRYING', 'SKIPPED_CIRCUIT_OPEN')
     )
 );
 
@@ -57,12 +57,28 @@ CREATE TABLE IF NOT EXISTS proof_events (
     request_id     UUID          NOT NULL REFERENCES deletion_requests(id) ON DELETE CASCADE,
     service_name   VARCHAR(50)   NOT NULL,
     event_type     VARCHAR(50)   NOT NULL,
+    dedupe_key     VARCHAR(255)  NOT NULL,
     payload        JSONB         NOT NULL DEFAULT '{}',
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_proof_request ON proof_events (request_id);
 CREATE INDEX idx_proof_service ON proof_events (service_name);
+CREATE UNIQUE INDEX idx_proof_dedupe ON proof_events (dedupe_key);
+
+-- ────────────────────────────────────────────────────────────
+-- Table: processed_events
+-- Idempotency ledger for already-handled message event IDs.
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS processed_events (
+    event_id     UUID PRIMARY KEY,
+    request_id   UUID         NOT NULL,
+    service_name VARCHAR(100) NOT NULL,
+    processed_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_processed_events_request ON processed_events (request_id);
+CREATE INDEX idx_processed_events_service ON processed_events (service_name);
 
 -- ────────────────────────────────────────────────────────────
 -- Table: users (sample data for demo / testing)

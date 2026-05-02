@@ -64,6 +64,7 @@ export class DeletionRequestService {
 
     // Publish deletion requested event
     await this.eventPublisher.publishDeletionRequested({
+      event_id: uuidv4(),
       request_id: savedRequest.id,
       subject_id: dto.subject_id,
       trace_id: traceId,
@@ -165,7 +166,12 @@ export class DeletionRequestService {
   async getDeletionProof(id: string): Promise<DeletionProofResponseDto> {
     const request = await this.deletionRequestRepository.findOne({
       where: { id },
-      relations: ['steps', 'proof_events']
+      relations: ['steps', 'proof_events'],
+      order: {
+        proof_events: {
+          created_at: 'ASC'
+        }
+      }
     });
 
     if (!request) {
@@ -211,7 +217,7 @@ export class DeletionRequestService {
       { request_id: requestId, step_name: stepName },
       { 
         status, 
-        error_message: errorMessage
+        error_message: errorMessage ?? null
       }
     );
 
@@ -227,12 +233,19 @@ export class DeletionRequestService {
     });
 
     const allCompleted = steps.every(step => 
-      step.status === DeletionStepStatus.SUCCEEDED || step.status === DeletionStepStatus.FAILED
+      step.status === DeletionStepStatus.SUCCEEDED ||
+      step.status === DeletionStepStatus.FAILED ||
+      step.status === DeletionStepStatus.SKIPPED_CIRCUIT_OPEN
     );
 
     if (allCompleted) {
       const hasFailures = steps.some(step => step.status === DeletionStepStatus.FAILED);
-      const newStatus = hasFailures ? DeletionRequestStatus.FAILED : DeletionRequestStatus.COMPLETED;
+      const hasSkipped = steps.some(step => step.status === DeletionStepStatus.SKIPPED_CIRCUIT_OPEN);
+      const newStatus = hasFailures
+        ? DeletionRequestStatus.FAILED
+        : hasSkipped
+          ? DeletionRequestStatus.PARTIAL_COMPLETED
+          : DeletionRequestStatus.COMPLETED;
       
       await this.deletionRequestRepository.update(requestId, {
         status: newStatus,

@@ -1,0 +1,19 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+COPY . .
+RUN npm run build
+
+RUN addgroup -g 1001 -S nestjs && adduser -S -u 1001 nestjs
+RUN chown -R nestjs:nestjs /app
+USER nestjs
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget --spider -q http://127.0.0.1:3000/health || exit 1
+
+EXPOSE 3000
+CMD ["npm", "run", "start:prod"]
