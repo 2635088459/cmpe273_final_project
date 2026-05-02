@@ -6,7 +6,8 @@ export enum DeletionStepStatus {
   RUNNING = 'RUNNING',
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
-  RETRYING = 'RETRYING'
+  RETRYING = 'RETRYING',
+  SKIPPED_CIRCUIT_OPEN = 'SKIPPED_CIRCUIT_OPEN'
 }
 
 @Entity('deletion_steps')
@@ -22,7 +23,7 @@ export class DeletionStep {
 
   @Column({
     type: 'varchar',
-    length: 20,
+    length: 30,
     default: DeletionStepStatus.PENDING
   })
   status: DeletionStepStatus;

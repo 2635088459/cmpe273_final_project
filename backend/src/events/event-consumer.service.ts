@@ -6,9 +6,11 @@ import * as amqp from 'amqplib';
 import { 
   DeletionStepSucceededEvent, 
   DeletionStepFailedEvent,
+  DeletionStepRetryingEvent,
+  DuplicateEventIgnoredEvent,
   EventTypes 
 } from './types';
-import { DeletionStep, ProofEvent, DeletionStepStatus } from '../database/entities';
+import { ProofEvent, ProcessedEvent, DeletionStepStatus } from '../database/entities';
 import { DeletionRequestService } from '../deletion-request/deletion-request.service';
 
 @Injectable()
@@ -16,12 +18,15 @@ export class EventConsumerService {
   private readonly logger = new Logger(EventConsumerService.name);
   private connection: any = null;
   private channel: any = null;
+  private readonly EXCHANGE_NAME = 'erasegraph.events';
   private readonly QUEUE_NAME = 'erasegraph.step-results';
 
   constructor(
     private configService: ConfigService,
     @InjectRepository(ProofEvent)
     private proofEventRepository: Repository<ProofEvent>,
+    @InjectRepository(ProcessedEvent)
+    private processedEventRepository: Repository<ProcessedEvent>,
     private deletionRequestService: DeletionRequestService
   ) {}
 
@@ -42,8 +47,11 @@ export class EventConsumerService {
       this.connection = await amqp.connect(rabbitmqUrl);
       this.channel = await this.connection.createChannel();
       
-      // Ensure the queue exists
+      await this.channel.assertExchange(this.EXCHANGE_NAME, 'topic', { durable: true });
       await this.channel.assertQueue(this.QUEUE_NAME, { durable: true });
+      await this.channel.bindQueue(this.QUEUE_NAME, this.EXCHANGE_NAME, 'step.succeeded');
+      await this.channel.bindQueue(this.QUEUE_NAME, this.EXCHANGE_NAME, 'step.failed');
+      await this.channel.bindQueue(this.QUEUE_NAME, this.EXCHANGE_NAME, 'step.retrying');
       
       // Set prefetch to 1 for fair dispatch
       await this.channel.prefetch(1);
@@ -105,6 +113,18 @@ export class EventConsumerService {
       
       case EventTypes.DELETION_STEP_FAILED:
         await this.handleStepFailed(eventData as DeletionStepFailedEvent);
+        break;
+
+      case EventTypes.DELETION_STEP_RETRYING:
+        await this.handleStepRetrying(eventData as DeletionStepRetryingEvent);
+        break;
+
+      case EventTypes.DUPLICATE_EVENT_IGNORED:
+        await this.handleDuplicateEventIgnored(eventData as DuplicateEventIgnoredEvent);
+        break;
+
+      case EventTypes.CIRCUIT_OPEN_SKIP:
+        await this.handleCircuitOpenSkip(eventData as DuplicateEventIgnoredEvent);
         break;
       
       default:
@@ -190,6 +210,97 @@ export class EventConsumerService {
     }
   }
 
+  private async handleStepRetrying(event: DeletionStepRetryingEvent) {
+    const {
+      request_id,
+      step_name,
+      service_name,
+      error_message,
+      retry_count,
+      next_retry_delay_ms,
+      metadata
+    } = event;
+
+    await this.deletionRequestService.updateStepStatus(
+      request_id,
+      step_name,
+      DeletionStepStatus.RETRYING,
+      error_message
+    );
+
+    await this.saveProofEvent({
+      request_id,
+      service_name,
+      event_type: EventTypes.DELETION_STEP_RETRYING,
+      dedupe_key: this.buildDedupeKey(
+        request_id,
+        service_name,
+        EventTypes.DELETION_STEP_RETRYING,
+        step_name,
+        event.timestamp
+      ),
+      payload: {
+        step_name,
+        trace_id: event.trace_id,
+        retry_count,
+        next_retry_delay_ms,
+        error_message,
+        metadata,
+        timestamp: event.timestamp
+      }
+    });
+  }
+
+  private async handleDuplicateEventIgnored(event: DuplicateEventIgnoredEvent) {
+    await this.saveProofEvent({
+      request_id: event.request_id,
+      service_name: event.service_name,
+      event_type: EventTypes.DUPLICATE_EVENT_IGNORED,
+      dedupe_key: this.buildDedupeKey(
+        event.request_id,
+        event.service_name,
+        EventTypes.DUPLICATE_EVENT_IGNORED,
+        event.step_name,
+        event.duplicate_event_id
+      ),
+      payload: {
+        step_name: event.step_name,
+        trace_id: event.trace_id,
+        duplicate_event_id: event.duplicate_event_id,
+        metadata: event.metadata,
+        timestamp: event.timestamp
+      }
+    });
+  }
+
+  private async handleCircuitOpenSkip(event: DuplicateEventIgnoredEvent) {
+    await this.deletionRequestService.updateStepStatus(
+      event.request_id,
+      event.step_name,
+      DeletionStepStatus.SKIPPED_CIRCUIT_OPEN,
+      'Skipped because circuit breaker is OPEN'
+    );
+
+    await this.saveProofEvent({
+      request_id: event.request_id,
+      service_name: event.service_name,
+      event_type: EventTypes.CIRCUIT_OPEN_SKIP,
+      dedupe_key: this.buildDedupeKey(
+        event.request_id,
+        event.service_name,
+        EventTypes.CIRCUIT_OPEN_SKIP,
+        event.step_name,
+        event.timestamp
+      ),
+      payload: {
+        step_name: event.step_name,
+        trace_id: event.trace_id,
+        metadata: event.metadata,
+        timestamp: event.timestamp
+      }
+    });
+  }
+
   private buildDedupeKey(
     requestId: string,
     serviceName: string,
@@ -213,6 +324,27 @@ export class EventConsumerService {
       if (this.isDuplicateProofEvent(error)) {
         this.logger.warn(`Duplicate proof event ignored for dedupe_key=${event.dedupe_key}`);
         return;
+      }
+
+      throw error;
+    }
+  }
+
+  async markProcessedEvent(
+    eventId: string,
+    requestId: string,
+    serviceName: string
+  ): Promise<boolean> {
+    try {
+      await this.processedEventRepository.insert({
+        event_id: eventId,
+        request_id: requestId,
+        service_name: serviceName
+      });
+      return true;
+    } catch (error) {
+      if (this.isDuplicateProofEvent(error)) {
+        return false;
       }
 
       throw error;
