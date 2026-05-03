@@ -354,7 +354,7 @@ Write a guide covering:
 
 ---
 
-## Member 4 — Frontend + Real-Time Features
+## Sakshat Patil — Frontend + Real-Time Features
 
 ### CODE-FE-001: Dashboard Upgrade
 
