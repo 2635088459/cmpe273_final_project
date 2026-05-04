@@ -1,21 +1,24 @@
-import { 
-  Controller, 
-  Post, 
-  Get, 
-  Body, 
-  Param, 
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
   Query,
   ValidationPipe,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  MessageEvent,
+  Sse
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
   ApiParam,
   ApiQuery
 } from '@nestjs/swagger';
+import { Observable } from 'rxjs';
 import { DeletionRequestService } from './deletion-request.service';
 import { 
   CreateDeletionRequestDto,
@@ -97,8 +100,38 @@ export class DeletionRequestController {
     return this.deletionRequestService.getDeletionRequest(id);
   }
 
+  @Sse(':id/stream')
+  @ApiOperation({
+    summary: 'Stream real-time deletion request status updates via Server-Sent Events',
+  })
+  @ApiParam({ name: 'id', description: 'Deletion request UUID' })
+  streamDeletionStatus(@Param('id') id: string): Observable<MessageEvent> {
+    const TERMINAL = ['COMPLETED', 'FAILED'];
+    return new Observable<MessageEvent>((observer) => {
+      let handle: ReturnType<typeof setInterval>;
+
+      const poll = async () => {
+        try {
+          const request = await this.deletionRequestService.getDeletionRequest(id);
+          observer.next({ data: request } as MessageEvent);
+          if (TERMINAL.includes(request.status)) {
+            observer.complete();
+            clearInterval(handle);
+          }
+        } catch (err) {
+          observer.error(err);
+          clearInterval(handle);
+        }
+      };
+
+      poll();
+      handle = setInterval(poll, 1500);
+      return () => clearInterval(handle);
+    });
+  }
+
   @Get(':id/proof')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get deletion proof and audit trail',
     description: 'Retrieves the complete audit trail and proof events for a deletion request'
   })
