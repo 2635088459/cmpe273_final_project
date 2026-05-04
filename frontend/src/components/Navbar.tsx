@@ -22,6 +22,14 @@ function Navbar() {
           Overview
         </NavLink>
         <NavLink
+          to="/history"
+          className={({ isActive }) =>
+            `app-nav-link${isActive ? " active" : ""}`
+          }
+        >
+          History
+        </NavLink>
+        <NavLink
           to="/users"
           className={({ isActive }) =>
             `app-nav-link${isActive ? " active" : ""}`
@@ -36,6 +44,14 @@ function Navbar() {
           }
         >
           Submit Request
+        </NavLink>
+        <NavLink
+          to="/admin"
+          className={({ isActive }) =>
+            `app-nav-link${isActive ? " active" : ""}`
+          }
+        >
+          Admin
         </NavLink>
       </div>
     </nav>

@@ -1,11 +1,11 @@
 import axios from "axios";
 
-const API = axios.create({
-  baseURL:
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.REACT_APP_API_URL ||
-    "http://localhost:3001",
-});
+export const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL ||
+  process.env.REACT_APP_API_URL ||
+  "http://localhost:3001";
+
+const API = axios.create({ baseURL: API_BASE_URL });
 
 export type CreateDeletionRequestPayload = {
   subject_id: string;
@@ -110,6 +110,47 @@ export async function listDemoUsers(): Promise<DemoUser[]> {
 export async function restoreDemoUsers(): Promise<DemoUser[]> {
   const response = await API.post<DemoUser[]>("/users/restore-demo");
 
+  return response.data;
+}
+
+export type ServiceStatus = {
+  status: "UP" | "DOWN";
+  checkedAt?: string;
+  lastSeenUp?: string;
+  error?: string;
+};
+
+export type HealthAllResponse = {
+  overall: string;
+  services: Record<string, ServiceStatus>;
+  checkedAt: string;
+};
+
+export type CircuitSnapshot = {
+  service_name: string;
+  state: "CLOSED" | "OPEN" | "HALF_OPEN";
+  failure_count: number;
+  open_until?: number;
+};
+
+export type ProofVerifyResult = {
+  valid: boolean;
+  checked_events: number;
+  failed_at?: string;
+};
+
+export async function getDeletionProofVerify(id: string): Promise<ProofVerifyResult> {
+  const response = await API.get<ProofVerifyResult>(`/deletions/${id}/proof/verify`);
+  return response.data;
+}
+
+export async function getHealthAll(): Promise<HealthAllResponse> {
+  const response = await API.get<HealthAllResponse>("/health/all");
+  return response.data;
+}
+
+export async function getCircuitStates(): Promise<CircuitSnapshot[]> {
+  const response = await API.get<CircuitSnapshot[]>("/admin/circuits");
   return response.data;
 }
 

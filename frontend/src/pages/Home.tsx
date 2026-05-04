@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
+  API_BASE_URL,
   DeletionProof,
   DeletionRequest,
   ProofEvent,
+  ProofVerifyResult,
   getDeletionProof,
+  getDeletionProofVerify,
   listDeletionRequests,
 } from "../services/api";
 
@@ -130,7 +133,12 @@ function buildPrintableProofHtml(
   `;
 }
 
+const ACTIVE_STATUSES = ["PENDING", "RUNNING", "RETRYING"];
+
 function Home() {
+  const location = useLocation();
+  const incomingRequestId = (location.state as { requestId?: string } | null)?.requestId;
+
   const [requests, setRequests] = useState<DeletionRequest[]>([]);
   const [selectedRequest, setSelectedRequest] =
     useState<DeletionRequest | null>(null);
@@ -140,7 +148,10 @@ function Home() {
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isProofLoading, setIsProofLoading] = useState(false);
+  const [proofVerify, setProofVerify] = useState<ProofVerifyResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let isActive = true;
@@ -162,9 +173,8 @@ function Home() {
 
         setRequests(data.items);
 
-        const stillSelected = data.items.find(
-          (request) => request.id === selectedRequest?.id
-        );
+        const targetId = incomingRequestId || selectedRequest?.id;
+        const stillSelected = data.items.find((r) => r.id === targetId);
         setSelectedRequest(stillSelected || data.items[0] || null);
       } catch (error) {
         if (isActive) {
@@ -182,7 +192,37 @@ function Home() {
     return () => {
       isActive = false;
     };
-  }, [search, status, selectedRequest?.id]);
+  }, [search, status, selectedRequest?.id, refreshTick]);
+
+  useEffect(() => {
+    const hasActive = requests.some((r) => ACTIVE_STATUSES.includes(r.status));
+    if (!autoRefresh || !hasActive) return;
+
+    const interval = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, requests]);
+
+  useEffect(() => {
+    if (!selectedRequest || !ACTIVE_STATUSES.includes(selectedRequest.status)) return;
+    if (!('EventSource' in window)) return;
+
+    const source = new EventSource(
+      `${API_BASE_URL}/deletions/${selectedRequest.id}/stream`
+    );
+
+    source.onmessage = (e) => {
+      const updated: DeletionRequest = JSON.parse(e.data);
+      setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      setSelectedRequest((prev) => (prev?.id === updated.id ? updated : prev));
+    };
+
+    source.onerror = () => source.close();
+
+    return () => source.close();
+  }, [selectedRequest?.id]);
 
   useEffect(() => {
     let isActive = true;
@@ -190,22 +230,27 @@ function Home() {
     async function loadProof() {
       if (!selectedRequest) {
         setProof(null);
+        setProofVerify(null);
         return;
       }
 
       setIsProofLoading(true);
 
       try {
-        const data = await getDeletionProof(selectedRequest.id);
+        const [data, verify] = await Promise.allSettled([
+          getDeletionProof(selectedRequest.id),
+          getDeletionProofVerify(selectedRequest.id),
+        ]);
 
         if (isActive) {
-          setProof(data);
-          setExpandedEventIds(data.proof_events.slice(0, 1).map((event) => event.id));
-        }
-      } catch (error) {
-        if (isActive) {
-          setProof(null);
-          setExpandedEventIds([]);
+          if (data.status === "fulfilled") {
+            setProof(data.value);
+            setExpandedEventIds(data.value.proof_events.slice(0, 1).map((e) => e.id));
+          } else {
+            setProof(null);
+            setExpandedEventIds([]);
+          }
+          setProofVerify(verify.status === "fulfilled" ? verify.value : null);
         }
       } finally {
         if (isActive) {
@@ -421,6 +466,13 @@ function Home() {
           >
             Clear filters
           </button>
+          <button
+            className={`button-secondary button-compact${autoRefresh ? " is-active" : ""}`}
+            onClick={() => setAutoRefresh((v) => !v)}
+            title={autoRefresh ? "Auto-refresh is on (every 5s for active requests)" : "Auto-refresh is off"}
+          >
+            {autoRefresh ? "Auto-refresh on" : "Auto-refresh off"}
+          </button>
         </div>
       </section>
 
@@ -527,6 +579,17 @@ function Home() {
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : null}
+
+              {proofVerify !== null ? (
+                <div className={`proof-verify-badge ${proofVerify.valid ? "verified" : "tampered"}`}>
+                  <strong>{proofVerify.valid ? "Proof Verified ✓" : "Proof Tampered ✗"}</strong>
+                  <span>
+                    {proofVerify.valid
+                      ? `Hash chain intact across ${proofVerify.checked_events} event${proofVerify.checked_events !== 1 ? "s" : ""}`
+                      : `Chain broken at event ${proofVerify.failed_at ?? "unknown"}`}
+                  </span>
                 </div>
               ) : null}
 
