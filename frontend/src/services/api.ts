@@ -1,11 +1,11 @@
 import axios from "axios";
 
-export const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL ||
-  process.env.REACT_APP_API_URL ||
-  "http://localhost:3001";
-
-const API = axios.create({ baseURL: API_BASE_URL });
+const API = axios.create({
+  baseURL:
+    process.env.REACT_APP_API_BASE_URL ||
+    process.env.REACT_APP_API_URL ||
+    "http://localhost:3001",
+});
 
 export type CreateDeletionRequestPayload = {
   subject_id: string;
@@ -47,6 +47,23 @@ export type ProofEvent = {
   event_type: string;
   payload: Record<string, any>;
   created_at: string;
+  previous_hash?: string;
+  event_hash?: string;
+};
+
+export type ProofVerifyResult = {
+  valid: boolean;
+  request_id: string;
+  message?: string;
+  broken_event_id?: string;
+};
+
+export type DeletionNotificationRecord = {
+  request_id: string;
+  subject_id: string;
+  notification_type: string;
+  message: string;
+  delivered_at: string;
 };
 
 export type DeletionProof = {
@@ -101,6 +118,20 @@ export async function getDeletionProof(id: string): Promise<DeletionProof> {
   return response.data;
 }
 
+export async function verifyProofChain(id: string): Promise<ProofVerifyResult> {
+  const response = await API.get<ProofVerifyResult>(`/deletions/${id}/proof/verify`);
+  return response.data;
+}
+
+export async function getDeletionNotification(
+  id: string
+): Promise<DeletionNotificationRecord> {
+  const response = await API.get<DeletionNotificationRecord>(
+    `/deletions/${id}/notification`
+  );
+  return response.data;
+}
+
 export async function listDemoUsers(): Promise<DemoUser[]> {
   const response = await API.get<DemoUser[]>("/users");
 
@@ -110,47 +141,6 @@ export async function listDemoUsers(): Promise<DemoUser[]> {
 export async function restoreDemoUsers(): Promise<DemoUser[]> {
   const response = await API.post<DemoUser[]>("/users/restore-demo");
 
-  return response.data;
-}
-
-export type ServiceStatus = {
-  status: "UP" | "DOWN";
-  checkedAt?: string;
-  lastSeenUp?: string;
-  error?: string;
-};
-
-export type HealthAllResponse = {
-  overall: string;
-  services: Record<string, ServiceStatus>;
-  checkedAt: string;
-};
-
-export type CircuitSnapshot = {
-  service_name: string;
-  state: "CLOSED" | "OPEN" | "HALF_OPEN";
-  failure_count: number;
-  open_until?: number;
-};
-
-export type ProofVerifyResult = {
-  valid: boolean;
-  checked_events: number;
-  failed_at?: string;
-};
-
-export async function getDeletionProofVerify(id: string): Promise<ProofVerifyResult> {
-  const response = await API.get<ProofVerifyResult>(`/deletions/${id}/proof/verify`);
-  return response.data;
-}
-
-export async function getHealthAll(): Promise<HealthAllResponse> {
-  const response = await API.get<HealthAllResponse>("/health/all");
-  return response.data;
-}
-
-export async function getCircuitStates(): Promise<CircuitSnapshot[]> {
-  const response = await API.get<CircuitSnapshot[]>("/admin/circuits");
   return response.data;
 }
 

@@ -41,6 +41,41 @@ export class SchemaBootstrapService implements OnModuleInit {
         status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'RETRYING', 'SKIPPED_CIRCUIT_OPEN')
       )
     `);
+    await this.dataSource.query(`
+      ALTER TABLE proof_events
+      ADD COLUMN IF NOT EXISTS previous_hash VARCHAR(128)
+    `);
+    await this.dataSource.query(`
+      ALTER TABLE proof_events
+      ADD COLUMN IF NOT EXISTS event_hash VARCHAR(128)
+    `);
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS deletion_notifications (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        request_id UUID NOT NULL UNIQUE REFERENCES deletion_requests(id) ON DELETE CASCADE,
+        subject_id VARCHAR(255) NOT NULL,
+        notification_type VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS search_index_documents (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        subject_id VARCHAR(100) NOT NULL,
+        indexed_text TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS analytics_events (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        subject_id VARCHAR(100) NOT NULL,
+        event_payload JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        deleted_at TIMESTAMPTZ
+      )
+    `);
     this.logger.log('Reliability schema bootstrap completed');
   }
 }

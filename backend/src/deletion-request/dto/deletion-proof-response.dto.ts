@@ -15,6 +15,12 @@ export class ProofEventDto {
 
   @ApiProperty({ description: 'Event creation timestamp' })
   created_at: Date;
+
+  @ApiProperty({ description: 'Previous proof hash in tamper-evident chain', required: false })
+  previous_hash?: string;
+
+  @ApiProperty({ description: 'This row hash in tamper-evident chain', required: false })
+  event_hash?: string;
 }
 
 export class DeletionProofResponseDto {

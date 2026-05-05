@@ -8,17 +8,15 @@ import {
   ValidationPipe,
   HttpCode,
   HttpStatus,
-  MessageEvent,
-  Sse
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
+import { 
+  ApiTags, 
+  ApiOperation, 
+  ApiResponse, 
   ApiParam,
   ApiQuery
 } from '@nestjs/swagger';
-import { Observable } from 'rxjs';
 import { DeletionRequestService } from './deletion-request.service';
 import { 
   CreateDeletionRequestDto,
@@ -75,63 +73,31 @@ export class DeletionRequestController {
     return this.deletionRequestService.listDeletionRequests(query);
   }
 
-  @Get(':id')
-  @ApiOperation({ 
-    summary: 'Get deletion request status',
-    description: 'Retrieves the current status and progress of a deletion request'
-  })
-  @ApiParam({ 
-    name: 'id', 
-    description: 'Deletion request UUID',
-    example: 'ffe07b3a-93cd-4c0d-8b0a-9c5e8d2f1a6b'
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Deletion request details',
-    type: DeletionRequestResponseDto
-  })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Deletion request not found'
-  })
-  async getDeletionRequest(
-    @Param('id') id: string
-  ): Promise<DeletionRequestResponseDto> {
-    return this.deletionRequestService.getDeletionRequest(id);
-  }
-
-  @Sse(':id/stream')
+  @Get(':id/notification')
   @ApiOperation({
-    summary: 'Stream real-time deletion request status updates via Server-Sent Events',
+    summary: 'GDPR-style deletion notification record',
+    description: 'Returns the simulated user notification written when the workflow completes or fails',
   })
   @ApiParam({ name: 'id', description: 'Deletion request UUID' })
-  streamDeletionStatus(@Param('id') id: string): Observable<MessageEvent> {
-    const TERMINAL = ['COMPLETED', 'FAILED'];
-    return new Observable<MessageEvent>((observer) => {
-      let handle: ReturnType<typeof setInterval>;
+  @ApiResponse({ status: 200, description: 'Notification record' })
+  @ApiResponse({ status: 404, description: 'Request or notification not found' })
+  async getDeletionNotification(@Param('id', ParseUUIDPipe) id: string) {
+    return this.deletionRequestService.getDeletionNotification(id);
+  }
 
-      const poll = async () => {
-        try {
-          const request = await this.deletionRequestService.getDeletionRequest(id);
-          observer.next({ data: request } as MessageEvent);
-          if (TERMINAL.includes(request.status)) {
-            observer.complete();
-            clearInterval(handle);
-          }
-        } catch (err) {
-          observer.error(err);
-          clearInterval(handle);
-        }
-      };
-
-      poll();
-      handle = setInterval(poll, 1500);
-      return () => clearInterval(handle);
-    });
+  @Get(':id/proof/verify')
+  @ApiOperation({
+    summary: 'Verify tamper-evident proof hash chain',
+    description: 'Recomputes hashes for all proof events for this request',
+  })
+  @ApiParam({ name: 'id', description: 'Deletion request UUID' })
+  @ApiResponse({ status: 200, description: 'Verification outcome' })
+  async verifyProof(@Param('id', ParseUUIDPipe) id: string) {
+    return this.deletionRequestService.verifyProofChain(id);
   }
 
   @Get(':id/proof')
-  @ApiOperation({
+  @ApiOperation({ 
     summary: 'Get deletion proof and audit trail',
     description: 'Retrieves the complete audit trail and proof events for a deletion request'
   })
@@ -150,8 +116,33 @@ export class DeletionRequestController {
     description: 'Deletion request not found'
   })
   async getDeletionProof(
-    @Param('id') id: string
+    @Param('id', ParseUUIDPipe) id: string
   ): Promise<DeletionProofResponseDto> {
     return this.deletionRequestService.getDeletionProof(id);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get deletion request status',
+    description: 'Retrieves the current status and progress of a deletion request',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Deletion request UUID',
+    example: 'ffe07b3a-93cd-4c0d-8b0a-9c5e8d2f1a6b',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Deletion request details',
+    type: DeletionRequestResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Deletion request not found',
+  })
+  async getDeletionRequest(
+    @Param('id', ParseUUIDPipe) id: string
+  ): Promise<DeletionRequestResponseDto> {
+    return this.deletionRequestService.getDeletionRequest(id);
   }
 }
