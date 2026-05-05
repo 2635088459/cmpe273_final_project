@@ -51,6 +51,8 @@ services:
 
   # ────────────────────────────────────────────────────────────
   # RabbitMQ — message broker (with management UI)
+  # User/password: only RABBITMQ_DEFAULT_* (no definitions import — avoids credential drift).
+  # After changing auth, recreate volume: docker volume rm infra_rabbitmq_data
   # ────────────────────────────────────────────────────────────
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -64,8 +66,6 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-erasegraph_secret}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-      - ./init-scripts/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
-      - ./init-scripts/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -268,6 +268,109 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://localhost:3005/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Search Cleanup Service — Member 2 (CODE-SVC-001)
+  # ────────────────────────────────────────────────────────────
+  search-cleanup-service:
+    build:
+      context: ../search-cleanup-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-search-cleanup-service
+    restart: unless-stopped
+    ports:
+      - "${SEARCH_CLEANUP_PORT:-3008}:3008"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3008
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3008/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Analytics Cleanup Service — Member 2 (CODE-SVC-002, delayed)
+  # ────────────────────────────────────────────────────────────
+  analytics-cleanup-service:
+    build:
+      context: ../analytics-cleanup-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-analytics-cleanup-service
+    restart: unless-stopped
+    ports:
+      - "${ANALYTICS_CLEANUP_PORT:-3009}:3009"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3009
+      ANALYTICS_DELAY_MS: ${ANALYTICS_DELAY_MS:-7000}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3009/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Notification Service — Member 2 (CODE-SVC-003, GDPR-style log)
+  # ────────────────────────────────────────────────────────────
+  notification-service:
+    build:
+      context: ../notification-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-notification-service
+    restart: unless-stopped
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-3010}:3010"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3010
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3010/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

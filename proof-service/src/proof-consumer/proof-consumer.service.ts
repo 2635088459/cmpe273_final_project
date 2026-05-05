@@ -10,6 +10,9 @@ import {
   EventTypes,
 } from '../types/events';
 import { ProofEvent } from '../entities';
+import { computeProofEventHash, genesisHashForRequest } from '../proof/proof-hash.util';
+
+const EXCHANGE_NAME = 'erasegraph.events';
 
 @Injectable()
 export class ProofConsumerService {
@@ -40,7 +43,10 @@ export class ProofConsumerService {
 
     this.connection = await amqp.connect(rabbitmqUrl);
     this.channel = await this.connection.createChannel();
+    await this.channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
     await this.channel.assertQueue(this.QUEUE_NAME, { durable: true });
+    await this.channel.bindQueue(this.QUEUE_NAME, EXCHANGE_NAME, 'step.succeeded');
+    await this.channel.bindQueue(this.QUEUE_NAME, EXCHANGE_NAME, 'step.failed');
     await this.channel.prefetch(1);
 
     this.logger.log('Connected to RabbitMQ for proof consumption');
@@ -160,8 +166,40 @@ export class ProofConsumerService {
     dedupe_key: string;
     payload: Record<string, any>;
   }) {
+    const timestampIso =
+      (event.payload &&
+        typeof event.payload.timestamp === 'string' &&
+        event.payload.timestamp) ||
+      new Date().toISOString();
+
+    const last = await this.proofEventRepository
+      .createQueryBuilder('p')
+      .where('p.request_id = :rid', { rid: event.request_id })
+      .orderBy('p.created_at', 'DESC')
+      .addOrderBy('p.id', 'DESC')
+      .getOne();
+
+    const previous_hash =
+      last?.event_hash && last.event_hash.length > 0
+        ? last.event_hash
+        : genesisHashForRequest(event.request_id);
+
+    const event_hash = computeProofEventHash(
+      previous_hash,
+      event.request_id,
+      event.service_name,
+      event.event_type,
+      event.payload,
+      timestampIso
+    );
+
     try {
-      await this.proofEventRepository.save(event);
+      await this.proofEventRepository.save({
+        ...event,
+        previous_hash,
+        event_hash,
+        created_at: new Date(timestampIso),
+      } as ProofEvent);
       this.logger.log(
         `Stored proof event for request_id=${event.request_id} type=${event.event_type}`,
       );
