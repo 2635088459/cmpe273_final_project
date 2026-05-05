@@ -6,7 +6,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { DeletionRequestModule } from './deletion-request/deletion-request.module';
 import { EventPublisherService } from './events/event-publisher.service';
 import { EventConsumerService } from './events/event-consumer.service';
-import { DeletionRequest, DeletionStep, ProofEvent, ProcessedEvent, User } from './database/entities';
+import { DeletionRequest, DeletionStep, ProofEvent, ProcessedEvent, User, DeletionNotification } from './database/entities';
 import { UsersModule } from './users/users.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { HealthAggregatorModule } from './health/health.module';
@@ -28,7 +28,7 @@ import { SchemaBootstrapService } from './database/schema-bootstrap.service';
         username: configService.get('DB_USERNAME', 'erasegraph'),
         password: configService.get('DB_PASSWORD', 'erasegraph_secret'),
         database: configService.get('DB_DATABASE', 'erasegraph'),
-        entities: [DeletionRequest, DeletionStep, ProofEvent, ProcessedEvent, User],
+        entities: [DeletionRequest, DeletionStep, ProofEvent, ProcessedEvent, User, DeletionNotification],
         synchronize: false, // Use migrations in production
         logging: configService.get('NODE_ENV') === 'development'
       }),
