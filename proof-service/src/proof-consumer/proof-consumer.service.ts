@@ -199,7 +199,7 @@ export class ProofConsumerService {
         previous_hash,
         event_hash,
         created_at: new Date(timestampIso),
-      } as ProofEvent);
+      });
       this.logger.log(
         `Stored proof event for request_id=${event.request_id} type=${event.event_type}`,
       );

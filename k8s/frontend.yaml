@@ -15,10 +15,17 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: infra-frontend:latest
-          imagePullPolicy: IfNotPresent
+          image: aaronshan2635088459/erasegraph-frontend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
           readinessProbe:
             httpGet:
               path: /

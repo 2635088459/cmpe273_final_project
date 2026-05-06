@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: backend
-          image: infra-backend:latest
-          imagePullPolicy: IfNotPresent
+          image: aaronshan2635088459/erasegraph-backend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3001
           envFrom:
@@ -30,6 +30,13 @@ spec:
                 secretKeyRef:
                   name: erasegraph-secrets
                   key: DB_PASSWORD
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           readinessProbe:
             httpGet:
               path: /health

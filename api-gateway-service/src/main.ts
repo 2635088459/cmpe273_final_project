@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import { NestFactory } from '@nestjs/core';
 import { Request, Response } from 'express';
+import * as express from 'express';
 import { AppModule } from './app.module';
 
 const HOP_BY_HOP_HEADERS = new Set([
@@ -18,13 +19,28 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  // Explicitly parse JSON bodies before our proxy middleware
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   const serviceToken = process.env.SERVICE_TOKEN || 'erasegraph_internal_token';
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
   const port = Number(process.env.PORT || 3000);
 
   app.use(async (req: Request, res: Response) => {
+    // CORS headers on every response
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+
     if (req.path === '/health') {
       res.json({
         status: 'ok',
