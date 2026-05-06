@@ -53,24 +53,17 @@ spec:
               mountPath: /etc/rabbitmq/definitions.json
               subPath: definitions.json
               readOnly: true
-            - name: rabbitmq-definitions
-              mountPath: /etc/rabbitmq/rabbitmq.conf
-              subPath: rabbitmq.conf
-              readOnly: true
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
             initialDelaySeconds: 20
             periodSeconds: 10
-            timeoutSeconds: 10
             failureThreshold: 10
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
             initialDelaySeconds: 60
             periodSeconds: 30
-            timeoutSeconds: 15
-            failureThreshold: 5
       volumes:
         - name: rabbitmq-definitions
           configMap:
