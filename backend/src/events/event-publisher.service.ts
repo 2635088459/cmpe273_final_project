@@ -37,12 +37,42 @@ export class EventPublisherService {
       
       // Ensure the exchange exists
       await this.channel.assertExchange(this.EXCHANGE_NAME, 'topic', { durable: true });
-      
+
+      this.connection.on('error', (err: any) => {
+        this.logger.error('RabbitMQ connection error, reconnecting...', err.message);
+        this.scheduleReconnect();
+      });
+      this.connection.on('close', () => {
+        this.logger.warn('RabbitMQ connection closed, reconnecting...');
+        this.scheduleReconnect();
+      });
+      this.channel.on('error', (err: any) => {
+        this.logger.error('RabbitMQ channel error, will recreate', err.message);
+        this.channel = null;
+      });
+      this.channel.on('close', () => {
+        this.logger.warn('RabbitMQ channel closed, will recreate');
+        this.channel = null;
+      });
+
       this.logger.log('Connected to RabbitMQ successfully');
     } catch (error) {
       this.logger.error('Failed to connect to RabbitMQ', error);
       throw error;
     }
+  }
+
+  private scheduleReconnect() {
+    this.channel = null;
+    this.connection = null;
+    setTimeout(async () => {
+      try {
+        await this.connect();
+      } catch (err) {
+        this.logger.error('Reconnect failed, retrying in 5s');
+        this.scheduleReconnect();
+      }
+    }, 5000);
   }
 
   private async disconnect() {
@@ -118,7 +148,12 @@ export class EventPublisherService {
   private async publishEvent(routingKey: string, eventType: string, event: any): Promise<void> {
     try {
       if (!this.channel) {
-        throw new Error('RabbitMQ channel not initialized');
+        if (!this.connection) {
+          await this.connect();
+        } else {
+          this.channel = await this.connection.createChannel();
+          await this.channel.assertExchange(this.EXCHANGE_NAME, 'topic', { durable: true });
+        }
       }
 
       const message = {

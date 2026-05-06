@@ -28,17 +28,53 @@ spec:
                 secretKeyRef:
                   name: erasegraph-secrets
                   key: RABBITMQ_PASSWORD
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    AUTH=$(echo -n "erasegraph:${RABBITMQ_DEFAULT_PASS}" | base64 | tr -d '\n')
+                    i=0
+                    until wget -q -O /dev/null \
+                      --header="Authorization: Basic ${AUTH}" \
+                      http://localhost:15672/api/health/checks/aliveness \
+                      2>/dev/null; do
+                      i=$((i+1)); [ $i -gt 60 ] && exit 0; sleep 2
+                    done
+                    wget -q -O /dev/null \
+                      --header="Authorization: Basic ${AUTH}" \
+                      --header="Content-Type: application/json" \
+                      --post-file=/etc/rabbitmq/definitions.json \
+                      http://localhost:15672/api/definitions || true
+          volumeMounts:
+            - name: rabbitmq-definitions
+              mountPath: /etc/rabbitmq/definitions.json
+              subPath: definitions.json
+              readOnly: true
+            - name: rabbitmq-definitions
+              mountPath: /etc/rabbitmq/rabbitmq.conf
+              subPath: rabbitmq.conf
+              readOnly: true
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
             initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 10
             failureThreshold: 10
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
             initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 5
+      volumes:
+        - name: rabbitmq-definitions
+          configMap:
+            name: rabbitmq-definitions
 ---
 apiVersion: v1
 kind: Service

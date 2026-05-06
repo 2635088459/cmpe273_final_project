@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: cache-cleanup-service
-          image: infra-cache-cleanup-service:latest
-          imagePullPolicy: IfNotPresent
+          image: aaronshan2635088459/erasegraph-cache-cleanup-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3003
           envFrom:
@@ -25,6 +25,18 @@ spec:
           env:
             - name: PORT
               value: "3003"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: erasegraph-secrets
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
           readinessProbe:
             httpGet:
               path: /health

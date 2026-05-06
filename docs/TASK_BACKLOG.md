@@ -21,8 +21,8 @@
 ### INFRA-001: Docker Compose Infrastructure
 - **Priority:** 🔴 Critical (Blocker for all development)
 - **Story Points:** 5
-- **Assignee:** _[Available]_
-- **Status:** TODO
+- **Assignee:** Haoyuan Shan
+- **Status:** DONE
 - **Dependencies:** None
 
 **Description:**  
@@ -47,8 +47,8 @@ Set up the complete development environment using Docker Compose.
 ### INFRA-002: Database Schema & Migrations
 - **Priority:** 🔴 Critical
 - **Story Points:** 3
-- **Assignee:** _[Available]_
-- **Status:** TODO
+- **Assignee:** Haoyuan Shan
+- **Status:** DONE
 - **Dependencies:** INFRA-001
 
 **Description:**  
@@ -71,8 +71,8 @@ Create database schema for deletion tracking and proof generation.
 ### INFRA-003: RabbitMQ Exchange & Queue Setup
 - **Priority:** 🟡 High
 - **Story Points:** 2
-- **Assignee:** _[Available]_
-- **Status:** TODO
+- **Assignee:** Haoyuan Shan
+- **Status:** DONE
 - **Dependencies:** INFRA-001
 
 **Description:**  
@@ -97,8 +97,8 @@ Configure RabbitMQ exchanges, queues, and routing for event-driven communication
 ### BACKEND-001: Deletion Request Service - Core API
 - **Priority:** 🔴 Critical
 - **Story Points:** 8
-- **Assignee:** _[Available]_
-- **Status:** TODO
+- **Assignee:** Haoyuan Shan
+- **Status:** DONE
 - **Dependencies:** INFRA-001, INFRA-002
 
 **Description:**  
@@ -124,8 +124,8 @@ Implement the orchestrator service that handles deletion requests and coordinate
 ### BACKEND-002: Event Publishing & Message Queue Integration
 - **Priority:** 🔴 Critical
 - **Story Points:** 5
-- **Assignee:** _[Available]_
-- **Status:** TODO
+- **Assignee:** Haoyuan Shan
+- **Status:** DONE
 - **Dependencies:** BACKEND-001, INFRA-003
 
 **Description:**  
