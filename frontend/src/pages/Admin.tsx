@@ -239,6 +239,36 @@ function Admin() {
             </div>
           </div>
         </div>
+
+        <div className="content-panel admin-panel-section">
+          <div className="section-heading">
+            <h2>Metrics dashboard</h2>
+            <p>Live Prometheus metrics visualised in Grafana — deletion pipeline throughput, step status, and proof event counts.</p>
+          </div>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <a
+              href="http://34.58.58.190/d/erasegraph-main/erasegraph-deletion-pipeline?orgId=1&refresh=5s"
+              target="_blank"
+              rel="noreferrer"
+              className="button-primary"
+              style={{ textDecoration: "none" }}
+            >
+              Open Grafana Dashboard ↗
+            </a>
+            <a
+              href="http://34.58.58.190"
+              target="_blank"
+              rel="noreferrer"
+              className="button-secondary"
+              style={{ textDecoration: "none" }}
+            >
+              Grafana Home ↗
+            </a>
+          </div>
+          <p style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+            Login: <code>admin</code> / <code>erasegraph2026</code>
+          </p>
+        </div>
       </section>
     </div>
   );
