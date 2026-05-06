@@ -20,6 +20,12 @@ export class ProofEvent {
   @Column({ type: 'jsonb', default: '{}' })
   payload: any;
 
+  @Column({ type: 'varchar', length: 64, nullable: true, name: 'previous_hash' })
+  previous_hash: string;
+
+  @Column({ type: 'varchar', length: 64, nullable: true, name: 'event_hash' })
+  event_hash: string;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 }

@@ -5,6 +5,10 @@ const API = axios.create({
     process.env.REACT_APP_API_BASE_URL ||
     process.env.REACT_APP_API_URL ||
     "http://localhost:3001",
+  headers: {
+    "X-Service-Token":
+      process.env.REACT_APP_SERVICE_TOKEN || "Eg2026SvcInternal!",
+  },
 });
 
 export type CreateDeletionRequestPayload = {
@@ -141,6 +145,35 @@ export async function listDemoUsers(): Promise<DemoUser[]> {
 export async function restoreDemoUsers(): Promise<DemoUser[]> {
   const response = await API.post<DemoUser[]>("/users/restore-demo");
 
+  return response.data;
+}
+
+export type ServiceStatus = {
+  status: string;
+  checkedAt?: string | null;
+  lastSeenUp?: string | null;
+  error?: string | null;
+};
+
+export type HealthAllResponse = {
+  overall: string;
+  services: Record<string, ServiceStatus>;
+};
+
+export type CircuitSnapshot = {
+  service_name: string;
+  state: string;
+  failure_count: number;
+  open_until?: number | null;
+};
+
+export async function getHealthAll(): Promise<HealthAllResponse> {
+  const response = await API.get<HealthAllResponse>("/health/all");
+  return response.data;
+}
+
+export async function getCircuitStates(): Promise<CircuitSnapshot[]> {
+  const response = await API.get<CircuitSnapshot[]>("/admin/circuits");
   return response.data;
 }
 

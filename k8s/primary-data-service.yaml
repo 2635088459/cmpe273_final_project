@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: primary-data-service
-          image: infra-primary-data-service:latest
-          imagePullPolicy: IfNotPresent
+          image: aaronshan2635088459/erasegraph-primary-data-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3002
           envFrom:
@@ -30,6 +30,13 @@ spec:
                 secretKeyRef:
                   name: erasegraph-secrets
                   key: DB_PASSWORD
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
           readinessProbe:
             httpGet:
               path: /health
