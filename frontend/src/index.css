@@ -1,0 +1,82 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+:root {
+  color-scheme: dark;
+  --bg-top: #08111f;
+  --bg-bottom: #040813;
+  --hero-glow: rgba(72, 143, 255, 0.22);
+  --hero-accent: rgba(255, 113, 67, 0.16);
+  --surface-card: rgba(11, 18, 33, 0.88);
+  --surface-elevated: rgba(15, 24, 42, 0.94);
+  --surface-glass: rgba(10, 16, 30, 0.72);
+  --surface-hover: rgba(108, 169, 255, 0.12);
+  --border-soft: rgba(149, 177, 229, 0.14);
+  --text-primary: #eef4ff;
+  --text-secondary: #9eafcf;
+  --text-muted: #7180a0;
+  --accent-strong: #ff7a45;
+  --accent-secondary: #4e8dff;
+  --accent-soft: rgba(255, 122, 69, 0.12);
+  --accent-ring: rgba(78, 141, 255, 0.18);
+  --success-text: #7cf0bc;
+  --success-surface: rgba(33, 156, 110, 0.18);
+  --success-border: rgba(76, 221, 163, 0.24);
+  --danger-text: #ffb3b0;
+  --danger-surface: rgba(163, 42, 57, 0.18);
+  --danger-border: rgba(226, 100, 115, 0.24);
+  --shadow-soft: 0 28px 64px rgba(0, 0, 0, 0.34);
+  --shadow-strong: 0 34px 88px rgba(0, 0, 0, 0.46);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  color: var(--text-primary);
+  background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body,
+#root {
+  min-height: 100vh;
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  overflow-wrap: break-word;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Space Grotesk", "Inter", sans-serif;
+}
+
+code {
+  font-family: "IBM Plex Mono", Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+}

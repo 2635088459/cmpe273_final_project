@@ -1,0 +1,493 @@
+# ============================================================
+# EraseGraph — Docker Compose Infrastructure (INFRA-001)
+# ============================================================
+# Usage:
+#   cp .env.example .env
+#   docker-compose up -d
+#   docker-compose ps          # check all services healthy
+#   docker-compose down -v     # tear down + remove volumes
+# ============================================================
+
+services:
+  # ────────────────────────────────────────────────────────────
+  # PostgreSQL — primary relational database
+  # ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: erasegraph-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-erasegraph}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-erasegraph}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erasegraph}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ────────────────────────────────────────────────────────────
+  # Redis — cache layer
+  # ────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: erasegraph-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ────────────────────────────────────────────────────────────
+  # RabbitMQ — message broker (with management UI)
+  # User/password: only RABBITMQ_DEFAULT_* (no definitions import — avoids credential drift).
+  # After changing auth, recreate volume: docker volume rm infra_rabbitmq_data
+  # ────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: erasegraph-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"          # AMQP
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-erasegraph}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-erasegraph_secret}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ────────────────────────────────────────────────────────────
+  # Jaeger — distributed tracing (all-in-one)
+  # ────────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: erasegraph-jaeger
+    restart: unless-stopped
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"       # Jaeger UI
+      - "4317:4317"                             # OTLP gRPC
+      - "4318:4318"                             # OTLP HTTP
+      - "14268:14268"                           # Jaeger HTTP Thrift
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:16686/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ────────────────────────────────────────────────────────────
+  # EraseGraph Backend — NestJS API server
+  # ────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: erasegraph-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      # RabbitMQ configuration
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      # Redis configuration for circuit breaker state
+      REDIS_URL: redis://redis:6379
+      # OpenTelemetry configuration
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      SLA_THRESHOLD_MINUTES: ${SLA_THRESHOLD_MINUTES:-5}
+      SLA_CRON_EXPRESSION: ${SLA_CRON_EXPRESSION:-*/30 * * * * *}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Primary Data Service — BACKEND-003
+  # Consumes DeletionRequested, deletes from PostgreSQL users table
+  # ────────────────────────────────────────────────────────────
+  primary-data-service:
+    build:
+      context: ../primary-data-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-primary-data-service
+    restart: unless-stopped
+    ports:
+      - "${PRIMARY_DATA_PORT:-3002}:3002"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Cache Cleanup Service — BACKEND-004
+  # Consumes DeletionRequested, DELs Redis keys, simulates failure + retry
+  # ────────────────────────────────────────────────────────────
+  cache-cleanup-service:
+    build:
+      context: ../cache-cleanup-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-cache-cleanup-service
+    restart: unless-stopped
+    ports:
+      - "${CACHE_CLEANUP_PORT:-3003}:3003"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3003
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+      # Set to "false" to disable intentional first-attempt failure
+      SIMULATE_FAILURE: ${SIMULATE_FAILURE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3003/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Proof Service — BACKEND-005
+  # Consumes events, writes proof records to PostgreSQL
+  # ────────────────────────────────────────────────────────────
+  proof-service:
+    build:
+      context: ../proof-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-proof-service
+    restart: unless-stopped
+    ports:
+      - "${PROOF_SERVICE_PORT:-3004}:3004"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3004
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3004/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Backup Service — BACKEND-006
+  # Consumes DeletionRequested, purges backup records
+  # ────────────────────────────────────────────────────────────
+  backup-service:
+    build:
+      context: ../backup-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-backup-service
+    restart: unless-stopped
+    ports:
+      - "${BACKUP_SERVICE_PORT:-3005}:3005"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3005
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3005/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Search Cleanup Service — Member 2 (CODE-SVC-001)
+  # ────────────────────────────────────────────────────────────
+  search-cleanup-service:
+    build:
+      context: ../search-cleanup-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-search-cleanup-service
+    restart: unless-stopped
+    ports:
+      - "${SEARCH_CLEANUP_PORT:-3008}:3008"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3008
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3008/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Analytics Cleanup Service — Member 2 (CODE-SVC-002, delayed)
+  # ────────────────────────────────────────────────────────────
+  analytics-cleanup-service:
+    build:
+      context: ../analytics-cleanup-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-analytics-cleanup-service
+    restart: unless-stopped
+    ports:
+      - "${ANALYTICS_CLEANUP_PORT:-3009}:3009"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3009
+      ANALYTICS_DELAY_MS: ${ANALYTICS_DELAY_MS:-7000}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3009/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Notification Service — Member 2 (CODE-SVC-003, GDPR-style log)
+  # ────────────────────────────────────────────────────────────
+  notification-service:
+    build:
+      context: ../notification-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-notification-service
+    restart: unless-stopped
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-3010}:3010"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3010
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-erasegraph}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-erasegraph_secret}
+      DB_DATABASE: ${POSTGRES_DB:-erasegraph}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-erasegraph}:${RABBITMQ_PASSWORD:-erasegraph_secret}@rabbitmq:5672
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3010/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # API Gateway — Optional REL task
+  # Validates X-Service-Token before proxying to backend
+  # ────────────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ../api-gateway-service
+      dockerfile: Dockerfile
+    container_name: erasegraph-api-gateway
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-3007}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      BACKEND_URL: http://backend:3001
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-erasegraph_internal_token}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Frontend — React SPA served via nginx
+  # ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: http://localhost:3001
+    container_name: erasegraph-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ────────────────────────────────────────────────────────────
+  # Prometheus — scrapes /metrics/prometheus from backend
+  # UI: http://localhost:9090
+  # ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: erasegraph-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ────────────────────────────────────────────────────────────
+  # Grafana — pre-provisioned dashboard for EraseGraph metrics
+  # UI: http://localhost:3006  (admin / admin)
+  # ────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: erasegraph-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3006}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
