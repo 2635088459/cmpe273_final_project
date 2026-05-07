@@ -6,7 +6,7 @@ This document gives a simple summary of Vritika's contribution to the EraseGraph
 
 Vritika mainly worked on the proof-related backend work, useful frontend features, and the endpoints needed to support the dashboard and demo flow.
 
-For the team extension, Vritika also owns the reliability work for failed deletion cleanup:
+For the team extension, Vritika also owns the reliability work for failed deletion cleanup and the batch CSV deletion feature:
 
 - Retry queues and dead letter queue for cache cleanup failures
 - Duplicate event protection using event IDs
@@ -15,6 +15,7 @@ For the team extension, Vritika also owns the reliability work for failed deleti
 - Failure/retry design documentation
 - Optional DLQ replay endpoint
 - Optional API gateway with service token validation
+- **Batch CSV deletion** — `POST /deletions/bulk` endpoint, per-row result reporting, frontend bulk upload UI
 
 ## Backend Work
 
@@ -25,6 +26,10 @@ For the team extension, Vritika also owns the reliability work for failed deleti
   - `GET /users`
   - `POST /users/restore-demo`
 - Supported proof and audit trail retrieval for deletion requests
+- Implemented **`POST /deletions/bulk`** — CSV upload endpoint:
+  - `BulkDeletionService` — parses CSV buffer, deduplicates subject IDs, skips blank rows
+  - `BulkDeletionController` — validates file type (CSV only), returns 400 for missing/non-CSV files
+  - Returns `{ created, skipped, request_ids, rows }` with per-row status
 
 ## Frontend Work
 
@@ -33,6 +38,11 @@ For the team extension, Vritika also owns the reliability work for failed deleti
 - Improved **Frontend 2** because the earlier form UI looked too basic
 - Improved the frontend layout and styling so the app looked cleaner and more polished
 - Added the **Demo Users** page to help with project demos
+- Added the **Bulk Upload** page (`/bulk`):
+  - File picker restricted to `.csv` files
+  - Upload button posts to `POST /deletions/bulk`
+  - Results table shows per-row status (created / skipped) with reason and request ID
+  - Summary card shows total created and skipped counts
 
 ## Features Added / Improved
 
@@ -48,6 +58,22 @@ For the team extension, Vritika also owns the reliability work for failed deleti
 - API gateway service with `X-Service-Token` validation
 - Failure handling design doc: `docs/failure_retry_design.md`
 - Reliability demo runbook: `docs/vritika-demo-runbook.md`
+- **Batch CSV deletion** — `POST /deletions/bulk` with per-row result reporting
+- **Bulk Upload UI** — `/bulk` page with file picker, upload button, and results table
+
+## Unit Tests Written
+
+All tests live in `backend/src/bulk-deletion/`:
+
+| File | Tests |
+|------|-------|
+| `bulk-deletion.service.spec.ts` | 3 valid rows → 3 requests created |
+| | Blank rows skipped and reported |
+| | Duplicate rows deduplicated |
+| | 5-row integration scenario (3 created, 2 skipped) |
+| `bulk-deletion.controller.spec.ts` | No file → 400 Bad Request |
+| | Non-CSV file → 400 Bad Request |
+| | Valid CSV → 200 with created/skipped/request_ids |
 
 ## What This Means Simply
 
@@ -58,3 +84,4 @@ In simple terms, Vritika's work helped make the project easier to use and demo b
 - improving the form and overall frontend experience
 - adding backend endpoints needed for the dashboard and demo pages
 - demonstrating realistic distributed-system failure handling
+- adding batch deletion support so operators can submit many subject IDs at once via a CSV upload
