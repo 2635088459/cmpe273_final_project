@@ -30,6 +30,122 @@ The optional API gateway runs inside its container on port `3000`. During local 
 GATEWAY_PORT=3007 docker compose -f infra/docker-compose.yml up -d api-gateway
 ```
 
+---
+
+## Batch CSV Deletion Demo
+
+### Step 1 — Prepare a test CSV
+
+Create a file `test.csv` in the project root:
+
+```
+subject_id
+bulk-user-001
+bulk-user-002
+bulk-user-003
+
+bulk-user-001
+```
+
+Row breakdown:
+- Row 1 (`bulk-user-001`) — valid, will be created
+- Row 2 (`bulk-user-002`) — valid, will be created
+- Row 3 (`bulk-user-003`) — valid, will be created
+- Row 4 (blank) — will be skipped
+- Row 5 (`bulk-user-001`) — duplicate, will be skipped
+
+### Step 2 — Upload via curl
+
+Send the CSV directly to the backend (port 3001). The API gateway does not support
+multipart form data, so use the backend address:
+
+```bash
+curl -s -X POST http://localhost:3001/deletions/bulk \
+  -F "file=@test.csv" | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+  "created": 3,
+  "skipped": 2,
+  "request_ids": ["<uuid-1>", "<uuid-2>", "<uuid-3>"],
+  "rows": [
+    { "row": 1, "subject_id": "bulk-user-001", "status": "created", "request_id": "..." },
+    { "row": 2, "subject_id": "bulk-user-002", "status": "created", "request_id": "..." },
+    { "row": 3, "subject_id": "bulk-user-003", "status": "created", "request_id": "..." },
+    { "row": 4, "subject_id": "",              "status": "skipped", "reason": "blank" },
+    { "row": 5, "subject_id": "bulk-user-001", "status": "skipped", "reason": "duplicate" }
+  ]
+}
+```
+
+### Step 3 — Confirm 3 requests appear in GET /deletions
+
+```bash
+curl -s "http://localhost:3001/deletions?search=bulk-user&limit=10" | python3 -m json.tool
+```
+
+Expected: `count: 3`, with subjects `bulk-user-001`, `bulk-user-002`, `bulk-user-003`.
+
+### Step 4 — Wait 30 seconds and confirm COMPLETED status
+
+```bash
+sleep 30
+curl -s "http://localhost:3001/deletions?search=bulk-user&limit=10" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); [print(r['subject_id'], r['status']) for r in d['items']]"
+```
+
+Expected output (all COMPLETED):
+
+```
+bulk-user-001 COMPLETED
+bulk-user-002 COMPLETED
+bulk-user-003 COMPLETED
+```
+
+### Step 5 — Frontend bulk upload UI
+
+1. Open `http://localhost:3020/bulk` (or `http://localhost:3000/bulk` if using default port).
+2. Click the **Bulk Upload** link in the navigation bar.
+3. Click the file picker — verify the file browser only shows `.csv` files (`accept=".csv"`).
+4. Select `test.csv`.
+5. Click **Upload CSV**.
+6. Confirm a per-row results table appears showing:
+   - 3 rows with status `created` and a `request_id`
+   - 1 row with status `skipped` reason `blank`
+   - 1 row with status `skipped` reason `duplicate`
+
+### Step 6 — Error cases to show
+
+Non-CSV file returns 400:
+
+```bash
+curl -s -X POST http://localhost:3001/deletions/bulk \
+  -F "file=@README.md" | python3 -m json.tool
+```
+
+Expected:
+
+```json
+{ "statusCode": 400, "message": "Only CSV files are accepted. Upload a .csv file." }
+```
+
+No file returns 400:
+
+```bash
+curl -s -X POST http://localhost:3001/deletions/bulk | python3 -m json.tool
+```
+
+Expected:
+
+```json
+{ "statusCode": 400, "message": "No file uploaded. Attach a CSV file in the \"file\" field." }
+```
+
+---
+
 ## Retry then success
 
 Submit a deletion with a subject ID that starts with `fail-`, for example:

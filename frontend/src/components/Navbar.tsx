@@ -46,6 +46,14 @@ function Navbar() {
           Submit Request
         </NavLink>
         <NavLink
+          to="/bulk"
+          className={({ isActive }) =>
+            `app-nav-link${isActive ? " active" : ""}`
+          }
+        >
+          Bulk Upload
+        </NavLink>
+        <NavLink
           to="/admin"
           className={({ isActive }) =>
             `app-nav-link${isActive ? " active" : ""}`

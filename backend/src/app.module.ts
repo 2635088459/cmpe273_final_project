@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { DeletionRequestModule } from './deletion-request/deletion-request.module';
+import { BulkDeletionModule } from './bulk-deletion/bulk-deletion.module';
 import { EventPublisherService } from './events/event-publisher.service';
 import { EventConsumerService } from './events/event-consumer.service';
 import { DeletionRequest, DeletionStep, ProofEvent, ProcessedEvent, User, DeletionNotification } from './database/entities';
@@ -37,6 +38,7 @@ import { SchemaBootstrapService } from './database/schema-bootstrap.service';
     TypeOrmModule.forFeature([ProofEvent, ProcessedEvent]), // For EventConsumerService
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     DeletionRequestModule,
+    BulkDeletionModule,
     UsersModule,
     MetricsModule,
     HealthAggregatorModule,
