@@ -63,7 +63,7 @@ For the team extension, Vritika also owns the reliability work for failed deleti
 
 ## Unit Tests Written
 
-All tests live in `backend/src/bulk-deletion/`:
+### Batch CSV Deletion (`backend/src/bulk-deletion/`)
 
 | File | Tests |
 |------|-------|
@@ -74,6 +74,19 @@ All tests live in `backend/src/bulk-deletion/`:
 | `bulk-deletion.controller.spec.ts` | No file → 400 Bad Request |
 | | Non-CSV file → 400 Bad Request |
 | | Valid CSV → 200 with created/skipped/request_ids |
+
+### Reliability & Circuit Breaker
+
+| File | Tests |
+|------|-------|
+| `admin/vritika_malhotra_circuit-breaker.service.spec.ts` | CLOSED → OPEN after 3 consecutive failures |
+| | OPEN state → canProcess() returns false |
+| | OPEN → HALF_OPEN after 30-second window expires |
+| `admin/vritika_malhotra_dlq-replay.service.spec.ts` | Re-publishes all DLQ messages to main exchange, returns count |
+| | NotFoundException for unsupported DLQ queue name |
+| `events/vritika_malhotra_idempotency.spec.ts` | Returns true when event_id is new (insert succeeds) |
+| | Returns false when same event_id arrives a second time (pg 23505) |
+| | Saves DUPLICATE_EVENT_IGNORED proof event when duplicate detected |
 
 ## What This Means Simply
 
