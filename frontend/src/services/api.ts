@@ -93,6 +93,23 @@ export type DemoUser = {
   updated_at: string;
 };
 
+// --- Bulk CSV deletion types ---
+
+export type BulkDeletionRowResult = {
+  row: number;
+  subject_id: string;
+  status: "created" | "skipped";
+  reason?: string;
+  request_id?: string;
+};
+
+export type BulkDeletionResponse = {
+  created: number;
+  skipped: number;
+  request_ids: string[];
+  rows: BulkDeletionRowResult[];
+};
+
 export async function createDeletionRequest(
   payload: CreateDeletionRequestPayload
 ): Promise<CreateDeletionRequestResponse> {
@@ -145,6 +162,19 @@ export async function listDemoUsers(): Promise<DemoUser[]> {
 export async function restoreDemoUsers(): Promise<DemoUser[]> {
   const response = await API.post<DemoUser[]>("/users/restore-demo");
 
+  return response.data;
+}
+
+export async function bulkDeleteCsv(
+  file: File
+): Promise<BulkDeletionResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await API.post<BulkDeletionResponse>(
+    "/deletions/bulk",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
   return response.data;
 }
 
