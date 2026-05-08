@@ -100,7 +100,8 @@ export const EventTypes = {
   DUPLICATE_EVENT_IGNORED: 'DUPLICATE_EVENT_IGNORED',
   CIRCUIT_OPEN_SKIP: 'CIRCUIT_OPEN_SKIP',
   DELETION_COMPLETED: 'DeletionCompleted',
-  DELETION_FAILED: 'DeletionFailed'
+  DELETION_FAILED: 'DeletionFailed',
+  SLA_VIOLATED: 'SLA_VIOLATED'
 } as const;
 
 // Routing keys for RabbitMQ

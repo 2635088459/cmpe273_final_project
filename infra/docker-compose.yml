@@ -119,6 +119,8 @@ services:
       # OpenTelemetry configuration
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      SLA_THRESHOLD_MINUTES: ${SLA_THRESHOLD_MINUTES:-5}
+      SLA_CRON_EXPRESSION: ${SLA_CRON_EXPRESSION:-*/30 * * * * *}
     depends_on:
       postgres:
         condition: service_healthy

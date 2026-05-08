@@ -1,9 +1,35 @@
 import axios from "axios";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import API, {
   createDeletionRequest,
   CreateDeletionRequestResponse,
+  DeletionStep,
 } from "../services/api";
+
+const STEP_ORDER = [
+  "primary_data",
+  "cache",
+  "search_cleanup",
+  "analytics_cleanup",
+  "backup",
+] as const;
+
+const STEP_LABELS: Record<string, string> = {
+  primary_data: "Primary database",
+  cache: "Cache (Redis)",
+  search_cleanup: "Search index",
+  analytics_cleanup: "Analytics (delayed)",
+  backup: "Backup markers",
+};
+
+function sseBaseUrl(): string {
+  const raw =
+    process.env.REACT_APP_API_BASE_URL ||
+    process.env.REACT_APP_API_URL ||
+    API.defaults.baseURL ||
+    "http://localhost:3001";
+  return String(raw).replace(/\/$/, "");
+}
 
 function SubmitDeletion() {
   const [subjectId, setSubjectId] = useState("");
@@ -11,6 +37,85 @@ function SubmitDeletion() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdRequest, setCreatedRequest] =
     useState<CreateDeletionRequestResponse | null>(null);
+
+  const [liveSteps, setLiveSteps] = useState<DeletionStep[]>([]);
+  const [liveStatus, setLiveStatus] = useState<string>("");
+  const [streamProcessing, setStreamProcessing] = useState(false);
+  const [streamFinished, setStreamFinished] = useState(false);
+  const [streamError, setStreamError] = useState("");
+  const [finalStatus, setFinalStatus] = useState<string>("");
+
+  const stepMap = useMemo(() => {
+    const m = new Map<string, DeletionStep>();
+    for (const s of liveSteps) {
+      m.set(s.step_name, s);
+    }
+    return m;
+  }, [liveSteps]);
+
+  useEffect(() => {
+    const id = createdRequest?.request_id;
+    if (!id) {
+      return undefined;
+    }
+
+    setStreamProcessing(true);
+    setStreamFinished(false);
+    setStreamError("");
+    setFinalStatus("");
+    setLiveSteps([]);
+    setLiveStatus("");
+
+    const url = `${sseBaseUrl()}/deletions/${id}/stream`;
+    const es = new EventSource(url);
+
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data) as {
+          status?: string;
+          steps?: DeletionStep[];
+        };
+        if (typeof data.status === "string") {
+          setLiveStatus(data.status);
+        }
+        if (data.steps?.length) {
+          setLiveSteps(data.steps);
+        }
+      } catch {
+        /* ignore malformed chunks */
+      }
+    };
+
+    es.addEventListener("done", (ev: Event) => {
+      const me = ev as MessageEvent;
+      try {
+        const payload = JSON.parse(me.data) as { status?: string };
+        const st = payload.status || "";
+        setFinalStatus(st);
+        if (st === "FAILED") {
+          setStreamError(
+            "One or more deletion steps failed. Check history or Jaeger for details."
+          );
+        }
+      } finally {
+        setStreamFinished(true);
+        setStreamProcessing(false);
+        es.close();
+      }
+    });
+
+    es.onerror = () => {
+      setStreamError(
+        "Lost connection to the live progress stream. You can still track this request on the History page."
+      );
+      setStreamProcessing(false);
+      es.close();
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [createdRequest?.request_id]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -25,6 +130,10 @@ function SubmitDeletion() {
     setIsSubmitting(true);
     setErrorMessage("");
     setCreatedRequest(null);
+    setLiveSteps([]);
+    setStreamFinished(false);
+    setStreamError("");
+    setFinalStatus("");
 
     try {
       const response = await createDeletionRequest({
@@ -52,6 +161,9 @@ function SubmitDeletion() {
       setIsSubmitting(false);
     }
   };
+
+  const showCompleteBanner =
+    streamFinished && !streamError && finalStatus === "COMPLETED";
 
   return (
     <div className="page-grid">
@@ -160,6 +272,30 @@ function SubmitDeletion() {
                 </div>
               ) : null}
 
+              {streamProcessing ? (
+                <div className="submit-feedback" role="status" style={{ borderColor: "rgba(100,149,237,0.35)" }}>
+                  <strong>Processing…</strong>
+                  <span>
+                    Live updates via SSE — no polling. Overall status:{" "}
+                    <span className="mono">{liveStatus || createdRequest?.status || "—"}</span>
+                  </span>
+                </div>
+              ) : null}
+
+              {showCompleteBanner ? (
+                <div className="submit-feedback success" role="status">
+                  <strong>Deletion complete</strong>
+                  <span>All tracked steps finished successfully. Proof and notification endpoints are ready to inspect.</span>
+                </div>
+              ) : null}
+
+              {streamError ? (
+                <div className="submit-feedback error" role="alert">
+                  <strong>Workflow notice</strong>
+                  <span>{streamError}</span>
+                </div>
+              ) : null}
+
               <div className="form-actions">
                 <button
                   type="submit"
@@ -188,7 +324,7 @@ function SubmitDeletion() {
                 <span className="process-index">2</span>
                 <div className="process-copy">
                   <strong>Deletion workflow</strong>
-                  <span>Primary data and cache cleanup services process the request.</span>
+                  <span>Downstream services process the request in parallel (analytics may finish later).</span>
                 </div>
               </div>
               <div className="process-row">
@@ -209,36 +345,72 @@ function SubmitDeletion() {
           </article>
 
           {createdRequest ? (
-            <article className="detail-card glow-card">
-              <div className="status-detail-top">
-                <div>
-                  <h3>Created request</h3>
-                  <p className="status-meta">
-                    Keep these values for status tracking and proof lookup.
+            <>
+              <article className="detail-card glow-card">
+                <div className="status-detail-top">
+                  <div>
+                    <h3>Created request</h3>
+                    <p className="status-meta">
+                      Keep these values for status tracking and proof lookup.
+                    </p>
+                  </div>
+                  <span className="status-chip pending">
+                    {(liveStatus || createdRequest.status).toLowerCase()}
+                  </span>
+                </div>
+
+                <div className="timeline-list">
+                  <div className="timeline-item">
+                    <span className="timeline-dot" />
+                    <div>
+                      <strong>Request ID</strong>
+                      <h4 className="mono">{createdRequest.request_id}</h4>
+                    </div>
+                  </div>
+                  <div className="timeline-item">
+                    <span className="timeline-dot" />
+                    <div>
+                      <strong>Trace ID</strong>
+                      <h4 className="mono">{createdRequest.trace_id}</h4>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article className="detail-card glow-card">
+                <div className="section-heading" style={{ marginBottom: "0.75rem" }}>
+                  <h3 style={{ margin: 0 }}>Pipeline steps</h3>
+                  <p className="status-meta" style={{ margin: "0.25rem 0 0" }}>
+                    Updated in real time from the SSE stream (
+                    <span className="mono">GET /deletions/:id/stream</span>).
                   </p>
                 </div>
-                <span className="status-chip pending">
-                  {createdRequest.status.toLowerCase()}
-                </span>
-              </div>
-
-              <div className="timeline-list">
-                <div className="timeline-item">
-                  <span className="timeline-dot" />
-                  <div>
-                    <strong>Request ID</strong>
-                    <h4 className="mono">{createdRequest.request_id}</h4>
-                  </div>
+                <div className="process-list">
+                  {STEP_ORDER.map((key) => {
+                    const st = stepMap.get(key)?.status || "PENDING";
+                    const chipClass =
+                      st === "SUCCEEDED" || st === "SKIPPED_CIRCUIT_OPEN"
+                        ? "completed"
+                        : st === "FAILED"
+                          ? "failed"
+                          : st === "RUNNING" || st === "RETRYING"
+                            ? "retrying"
+                            : "pending";
+                    return (
+                      <div className="process-row" key={key}>
+                        <span className={`status-chip ${chipClass}`} style={{ minWidth: "5.5rem", textAlign: "center" }}>
+                          {st}
+                        </span>
+                        <div className="process-copy">
+                          <strong>{STEP_LABELS[key] || key}</strong>
+                          <span className="mono">{key}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="timeline-item">
-                  <span className="timeline-dot" />
-                  <div>
-                    <strong>Trace ID</strong>
-                    <h4 className="mono">{createdRequest.trace_id}</h4>
-                  </div>
-                </div>
-              </div>
-            </article>
+              </article>
+            </>
           ) : (
             <article className="empty-state">
               <div>
