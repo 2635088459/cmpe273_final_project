@@ -9,7 +9,11 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
+import { Observable } from 'rxjs';
 import { 
   ApiTags, 
   ApiOperation, 
@@ -85,6 +89,21 @@ export class DeletionRequestController {
     return this.deletionRequestService.getDeletionNotification(id);
   }
 
+  @Sse(':id/stream')
+  @SkipThrottle()
+  @ApiOperation({
+    summary: 'Server-Sent Events stream of deletion progress',
+    description: 'Pushes step updates until the request reaches COMPLETED or FAILED',
+  })
+  @ApiParam({ name: 'id', description: 'Deletion request UUID' })
+  @ApiResponse({ status: 200, description: 'text/event-stream' })
+  async streamDeletionProgress(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Observable<MessageEvent>> {
+    await this.deletionRequestService.ensureDeletionRequestExists(id);
+    return this.deletionRequestService.observeDeletionProgress(id);
+  }
+
   @Get(':id/proof/verify')
   @ApiOperation({
     summary: 'Verify tamper-evident proof hash chain',
@@ -93,7 +112,8 @@ export class DeletionRequestController {
   @ApiParam({ name: 'id', description: 'Deletion request UUID' })
   @ApiResponse({ status: 200, description: 'Verification outcome' })
   async verifyProof(@Param('id', ParseUUIDPipe) id: string) {
-    return this.deletionRequestService.verifyProofChain(id);
+    const result = await this.deletionRequestService.verifyProofChain(id);
+    return result;
   }
 
   @Get(':id/proof')

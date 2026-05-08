@@ -36,15 +36,20 @@ Duplicate first-attempt messages are guarded by the Postgres `processed_events` 
 6. After 3 retries, the service publishes `DeletionStepFailed` and sends the message to `erasegraph.dlq.cache-cleanup`.
 7. The backend event consumer records proof events and updates `deletion_steps.status`.
 
-## RabbitMQ screenshot
+## RabbitMQ queues
 
-Add the demo screenshot here after running the stack:
+The queues below are live in the running stack. All retry and DLQ queues are durable so messages survive broker restarts.
 
-```text
-docs/images/rabbitmq-retry-dlq.png
-```
+![RabbitMQ queues — retry and DLQ](images/rabbitmq-retry-dlq.png)
 
-The screenshot should show the retry queues and `erasegraph.dlq.cache-cleanup` in the RabbitMQ management UI.
+| Queue | Role |
+|-------|------|
+| `erasegraph.deletion-requests.cache-cleanup` | Main delivery queue — cache-cleanup-service consumes from here |
+| `erasegraph.retry.cache-cleanup.5s` | First retry — 5 second TTL, dead-letters back to main queue |
+| `erasegraph.retry.cache-cleanup.10s` | Second retry — 10 second TTL |
+| `erasegraph.retry.cache-cleanup.20s` | Third (final) retry — 20 second TTL |
+| `erasegraph.dlq.cache-cleanup` | Dead letter queue — receives messages after 3 failed retries |
+| `erasegraph.step-results` | Backend event consumer — receives step succeeded/failed/retrying events |
 
 ## Status meanings
 

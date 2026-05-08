@@ -57,6 +57,7 @@ export type ProofEvent = {
 
 export type ProofVerifyResult = {
   valid: boolean;
+  verified: boolean;
   request_id: string;
   message?: string;
   broken_event_id?: string;
@@ -91,6 +92,23 @@ export type DemoUser = {
   email: string;
   created_at: string;
   updated_at: string;
+};
+
+// --- Bulk CSV deletion types ---
+
+export type BulkDeletionRowResult = {
+  row: number;
+  subject_id: string;
+  status: "created" | "skipped";
+  reason?: string;
+  request_id?: string;
+};
+
+export type BulkDeletionResponse = {
+  created: number;
+  skipped: number;
+  request_ids: string[];
+  rows: BulkDeletionRowResult[];
 };
 
 export async function createDeletionRequest(
@@ -148,6 +166,19 @@ export async function restoreDemoUsers(): Promise<DemoUser[]> {
   return response.data;
 }
 
+export async function bulkDeleteCsv(
+  file: File
+): Promise<BulkDeletionResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await API.post<BulkDeletionResponse>(
+    "/deletions/bulk",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return response.data;
+}
+
 export type ServiceStatus = {
   status: string;
   checkedAt?: string | null;
@@ -169,6 +200,18 @@ export type CircuitSnapshot = {
 
 export async function getHealthAll(): Promise<HealthAllResponse> {
   const response = await API.get<HealthAllResponse>("/health/all");
+  return response.data;
+}
+
+export type SlaViolationRow = {
+  request_id: string;
+  subject_id: string;
+  stuck_since: string;
+  duration_minutes: number;
+};
+
+export async function getSlaViolations(): Promise<SlaViolationRow[]> {
+  const response = await API.get<SlaViolationRow[]>("/admin/sla-violations");
   return response.data;
 }
 

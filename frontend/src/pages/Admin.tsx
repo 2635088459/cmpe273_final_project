@@ -3,8 +3,10 @@ import {
   CircuitSnapshot,
   HealthAllResponse,
   ServiceStatus,
+  SlaViolationRow,
   getCircuitStates,
   getHealthAll,
+  getSlaViolations,
 } from "../services/api";
 
 function formatDate(value?: string | null) {
@@ -83,16 +85,22 @@ function Admin() {
   const [isLoadingHealth, setIsLoadingHealth] = useState(true);
   const [isLoadingCircuits, setIsLoadingCircuits] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [slaRows, setSlaRows] = useState<SlaViolationRow[]>([]);
+  const [slaError, setSlaError] = useState("");
+  const [isLoadingSla, setIsLoadingSla] = useState(true);
 
   async function loadAll() {
     setIsLoadingHealth(true);
     setIsLoadingCircuits(true);
+    setIsLoadingSla(true);
     setHealthError("");
     setCircuitsError("");
+    setSlaError("");
 
-    const [healthResult, circuitsResult] = await Promise.allSettled([
+    const [healthResult, circuitsResult, slaResult] = await Promise.allSettled([
       getHealthAll(),
       getCircuitStates(),
+      getSlaViolations(),
     ]);
 
     if (healthResult.status === "fulfilled") {
@@ -109,6 +117,13 @@ function Admin() {
     }
     setIsLoadingCircuits(false);
     setLastRefreshed(new Date());
+
+    if (slaResult.status === "fulfilled") {
+      setSlaRows(slaResult.value);
+    } else {
+      setSlaError("Unable to reach /admin/sla-violations.");
+    }
+    setIsLoadingSla(false);
   }
 
   useEffect(() => {
@@ -238,6 +253,49 @@ function Admin() {
               <span>Tripped — requests skipped until cooldown</span>
             </div>
           </div>
+        </div>
+
+        <div className="content-panel admin-panel-section">
+          <div className="section-heading">
+            <h2>SLA violations</h2>
+            <p>
+              Requests flagged when they stay in-flight longer than{" "}
+              <code>SLA_THRESHOLD_MINUTES</code> (backend scanner).
+            </p>
+          </div>
+
+          {slaError ? (
+            <div className="inline-message error" role="alert">
+              <strong>SLA API unavailable</strong>
+              <span>{slaError}</span>
+            </div>
+          ) : isLoadingSla ? (
+            <div className="empty-state">
+              <div><h3>Loading SLA data</h3></div>
+            </div>
+          ) : slaRows.length === 0 ? (
+            <div className="empty-state">
+              <div>
+                <h3>No active SLA violations</h3>
+                <p>Stuck requests will appear here with duration and subject id.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="admin-service-list">
+              {slaRows.map((row) => (
+                <div className="admin-service-row" key={row.request_id}>
+                  <div className="admin-service-info">
+                    <strong className="mono">{row.request_id}</strong>
+                    <span className="admin-service-meta">
+                      subject <span className="mono">{row.subject_id}</span> · stuck since{" "}
+                      {formatDate(row.stuck_since)} · {row.duration_minutes} min over SLA window
+                    </span>
+                  </div>
+                  <span className="status-chip failed">SLA_VIOLATED</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="content-panel admin-panel-section">
