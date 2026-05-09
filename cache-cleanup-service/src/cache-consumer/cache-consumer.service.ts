@@ -28,6 +28,11 @@ const RETRY_DELAYS_MS = [5000, 10000, 20000];
 const CIRCUIT_OPEN_MS = 30000;
 const CIRCUIT_THRESHOLD = 3;
 
+type RemovedCacheEntry = {
+  key: string;
+  value_preview: unknown;
+};
+
 @Injectable()
 export class CacheConsumerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CacheConsumerService.name);
@@ -176,7 +181,7 @@ export class CacheConsumerService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.assertDemoFailureIfNeeded(event, retryCount);
-      const removedKeys = await this.deleteCacheKeys(event.subject_id);
+      const removedEntries = await this.deleteCacheKeys(event.subject_id);
       await this.recordCircuitSuccess();
       await this.markProcessed(event, 'succeeded');
 
@@ -187,7 +192,8 @@ export class CacheConsumerService implements OnModuleInit, OnModuleDestroy {
         trace_id: event.trace_id,
         timestamp: new Date().toISOString(),
         metadata: {
-          cache_keys_removed: removedKeys,
+          cache_keys_removed: removedEntries.map((entry) => entry.key),
+          cache_entry_summaries: removedEntries,
           subject_id: event.subject_id,
           retry_count: retryCount,
         },
@@ -324,7 +330,7 @@ export class CacheConsumerService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private async deleteCacheKeys(subjectId: string): Promise<string[]> {
+  private async deleteCacheKeys(subjectId: string): Promise<RemovedCacheEntry[]> {
     if (!this.redis) throw new Error('Redis not connected');
 
     const patterns = [
@@ -334,22 +340,34 @@ export class CacheConsumerService implements OnModuleInit, OnModuleDestroy {
       `profile:${subjectId}`,
     ];
 
-    const deletedKeys: string[] = [];
+    const deletedEntries: RemovedCacheEntry[] = [];
 
     for (const pattern of patterns) {
       if (pattern.includes('*')) {
         const keys = await this.scanKeys(pattern);
         if (keys.length > 0) {
+          const values = await this.redis.mget(keys);
           await this.redis.del(...keys);
-          deletedKeys.push(...keys);
+          deletedEntries.push(
+            ...keys.map((key, index) => ({
+              key,
+              value_preview: this.buildCachePreview(values[index]),
+            })),
+          );
         }
       } else {
+        const rawValue = await this.redis.get(pattern);
         const deleted = await this.redis.del(pattern);
-        if (deleted > 0) deletedKeys.push(pattern);
+        if (deleted > 0) {
+          deletedEntries.push({
+            key: pattern,
+            value_preview: this.buildCachePreview(rawValue),
+          });
+        }
       }
     }
 
-    return deletedKeys;
+    return deletedEntries;
   }
 
   private async scanKeys(pattern: string): Promise<string[]> {
@@ -363,6 +381,40 @@ export class CacheConsumerService implements OnModuleInit, OnModuleDestroy {
     } while (cursor !== '0');
 
     return keys;
+  }
+
+  private buildCachePreview(rawValue: string | null): unknown {
+    if (rawValue == null) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue) as Record<string, unknown> | unknown[] | string;
+      if (Array.isArray(parsed)) {
+        return parsed.slice(0, 3);
+      }
+
+      if (parsed && typeof parsed === 'object') {
+        return Object.fromEntries(
+          Object.entries(parsed as Record<string, unknown>).slice(0, 5).map(([key, value]) => [
+            key,
+            typeof value === 'string' ? this.truncateText(value, 80) : value,
+          ]),
+        );
+      }
+
+      return parsed;
+    } catch {
+      return this.truncateText(rawValue, 120);
+    }
+  }
+
+  private truncateText(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+      return value;
+    }
+
+    return `${value.slice(0, maxLength - 3)}...`;
   }
 
   private async publishRetrying(

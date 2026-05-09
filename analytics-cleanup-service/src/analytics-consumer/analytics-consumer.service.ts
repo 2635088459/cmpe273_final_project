@@ -126,6 +126,14 @@ export class AnalyticsConsumerService implements OnModuleInit, OnModuleDestroy {
       );
       await this.sleep(this.delayMs);
 
+      const existingEvents = await this.pgPool!.query(
+        `SELECT id, event_payload, created_at
+         FROM analytics_events
+         WHERE subject_id = $1 AND deleted_at IS NULL
+         ORDER BY created_at ASC`,
+        [subject_id],
+      );
+
       const r = await this.pgPool!.query(
         `UPDATE analytics_events SET deleted_at = NOW()
          WHERE subject_id = $1 AND deleted_at IS NULL`,
@@ -142,7 +150,25 @@ export class AnalyticsConsumerService implements OnModuleInit, OnModuleDestroy {
         service_name: SERVICE_NAME,
         trace_id,
         timestamp: new Date().toISOString(),
-        metadata: { soft_deleted_rows: marked, subject_id, delay_ms_applied: this.delayMs },
+        metadata: {
+          soft_deleted_rows: marked,
+          subject_id,
+          delay_ms_applied: this.delayMs,
+          soft_deleted_event_summaries: existingEvents.rows.map((row) => ({
+            event_id: row.id,
+            created_at: new Date(row.created_at).toISOString(),
+            event: row.event_payload?.event,
+            route: row.event_payload?.route,
+            format: row.event_payload?.format,
+            device: row.event_payload?.device,
+            campaign: row.event_payload?.campaign,
+            team: row.event_payload?.team,
+            section: row.event_payload?.section,
+            batch_size: row.event_payload?.batch_size,
+            source: row.event_payload?.source,
+            experiment: row.event_payload?.experiment,
+          })),
+        },
       });
     } catch (err: any) {
       this.logger.error(`Analytics cleanup failed request_id=${request_id}`, err);

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DeletionRequestModule } from './deletion-request/deletion-request.module';
 import { BulkDeletionModule } from './bulk-deletion/bulk-deletion.module';
 import { EventPublisherService } from './events/event-publisher.service';
@@ -13,6 +14,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { HealthAggregatorModule } from './health/health.module';
 import { AdminModule } from './admin/admin.module';
 import { SchemaBootstrapService } from './database/schema-bootstrap.service';
+import { ProofModule } from './proof/proof.module';
 
 @Module({
   imports: [
@@ -35,14 +37,16 @@ import { SchemaBootstrapService } from './database/schema-bootstrap.service';
       }),
       inject: [ConfigService]
     }),
-    TypeOrmModule.forFeature([ProofEvent, ProcessedEvent]), // For EventConsumerService
+    TypeOrmModule.forFeature([ProcessedEvent]),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     DeletionRequestModule,
     BulkDeletionModule,
     UsersModule,
     MetricsModule,
     HealthAggregatorModule,
-    AdminModule
+    AdminModule,
+    ProofModule,
   ],
   providers: [
     SchemaBootstrapService,

@@ -76,6 +76,22 @@ export class SchemaBootstrapService implements OnModuleInit {
         deleted_at TIMESTAMPTZ
       )
     `);
+    await this.dataSource.query(`
+      ALTER TABLE deletion_requests DROP CONSTRAINT IF EXISTS chk_request_status
+    `);
+    await this.dataSource.query(`
+      ALTER TABLE deletion_requests
+      ADD CONSTRAINT chk_request_status CHECK (
+        status IN (
+          'PENDING',
+          'RUNNING',
+          'PARTIAL_COMPLETED',
+          'COMPLETED',
+          'FAILED',
+          'SLA_VIOLATED'
+        )
+      )
+    `);
     this.logger.log('Reliability schema bootstrap completed');
   }
 }

@@ -7,7 +7,8 @@ export enum DeletionRequestStatus {
   RUNNING = 'RUNNING',
   PARTIAL_COMPLETED = 'PARTIAL_COMPLETED',
   COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED'
+  FAILED = 'FAILED',
+  SLA_VIOLATED = 'SLA_VIOLATED'
 }
 
 @Entity('deletion_requests')

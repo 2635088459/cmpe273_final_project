@@ -109,6 +109,7 @@ export class BackupConsumerService implements OnModuleInit, OnModuleDestroy {
     try {
       // Simulate backup purge latency (50-200ms)
       const latency = 50 + Math.floor(Math.random() * 150);
+      const simulatedArtifacts = this.buildSimulatedArtifacts(subject_id);
       await new Promise((resolve) => setTimeout(resolve, latency));
 
       this.logger.log(
@@ -123,8 +124,10 @@ export class BackupConsumerService implements OnModuleInit, OnModuleDestroy {
         timestamp: new Date().toISOString(),
         metadata: {
           subject_id,
-          backup_records_removed: 1,
+          backup_records_removed: simulatedArtifacts.length,
           storage_backend: 'simulated',
+          purge_latency_ms: latency,
+          simulated_artifacts_removed: simulatedArtifacts,
         },
       });
     } catch (err: any) {
@@ -177,5 +180,22 @@ export class BackupConsumerService implements OnModuleInit, OnModuleDestroy {
       },
     );
     this.logger.log(`Published DeletionStepFailed for request_id=${event.request_id}`);
+  }
+
+  private buildSimulatedArtifacts(subjectId: string): Array<Record<string, string>> {
+    return [
+      {
+        artifact_type: 'nightly_snapshot',
+        artifact_path: `gs://erasegraph-demo-backups/nightly/${subjectId}/snapshot.json.gz`,
+      },
+      {
+        artifact_type: 'weekly_archive',
+        artifact_path: `gs://erasegraph-demo-backups/weekly/${subjectId}/archive.tar`,
+      },
+      {
+        artifact_type: 'compliance_export',
+        artifact_path: `gs://erasegraph-demo-backups/compliance/${subjectId}/export.ndjson`,
+      },
+    ];
   }
 }
