@@ -1,133 +1,91 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, QueryFailedError } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import { v4 as uuidv4 } from 'uuid';
 import { DeletionRequest, DeletionRequestStatus } from '../database/entities/deletion-request.entity';
-import { EventTypes } from '../events/types';
-import { ProofChainService } from '../proof/proof-chain.service';
+import { ProofEvent } from '../database/entities/proof-event.entity';
 
-const SLA_SERVICE_NAME = 'sla_monitor';
-
-export type SlaViolationRow = {
+export interface SlaViolationItem {
   request_id: string;
   subject_id: string;
-  stuck_since: string;
+  stuck_since: Date;
   duration_minutes: number;
-};
+}
 
 @Injectable()
-export class SlaMonitorService {
+export class SlaMonitorService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SlaMonitorService.name);
+  private intervalHandle: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     @InjectRepository(DeletionRequest)
     private readonly deletionRequestRepository: Repository<DeletionRequest>,
-    private readonly configService: ConfigService,
-    private readonly proofChainService: ProofChainService,
+    @InjectRepository(ProofEvent)
+    private readonly proofEventRepository: Repository<ProofEvent>,
+    private readonly configService: ConfigService
   ) {}
 
-  /** Every 30s so demos with SLA_THRESHOLD_MINUTES=1 do not wait a full wall-clock minute. */
-  @Cron(process.env.SLA_CRON_EXPRESSION || '*/30 * * * * *')
-  async scanCron(): Promise<void> {
-    await this.checkSlaViolations();
+  onModuleInit() {
+    this.intervalHandle = setInterval(() => this.checkSlaViolations(), 60_000);
   }
 
-  async listViolations(): Promise<SlaViolationRow[]> {
-    const rows = await this.deletionRequestRepository.find({
+  onModuleDestroy() {
+    if (this.intervalHandle) clearInterval(this.intervalHandle);
+  }
+
+  async checkSlaViolations(): Promise<void> {
+    const thresholdMinutes = this.configService.get<number>('SLA_THRESHOLD_MINUTES', 5);
+    const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000);
+
+    const stuck = await this.deletionRequestRepository.find({
+      where: [
+        { status: DeletionRequestStatus.PENDING, created_at: LessThan(cutoff) },
+        { status: DeletionRequestStatus.RUNNING, created_at: LessThan(cutoff) },
+        { status: DeletionRequestStatus.PARTIAL_COMPLETED, created_at: LessThan(cutoff) }
+      ]
+    });
+
+    for (const request of stuck) {
+      await this.deletionRequestRepository.update(request.id, {
+        status: DeletionRequestStatus.SLA_VIOLATED
+      });
+
+      const dedupe = `sla-violated-${request.id}`;
+      const alreadyRecorded = await this.proofEventRepository.findOne({
+        where: { dedupe_key: dedupe }
+      });
+      if (alreadyRecorded) continue;
+
+      const proofEvent = this.proofEventRepository.create({
+        id: uuidv4(),
+        request_id: request.id,
+        service_name: 'sla-monitor',
+        event_type: 'SLA_VIOLATED',
+        dedupe_key: dedupe,
+        payload: {
+          threshold_minutes: thresholdMinutes,
+          stuck_since: request.created_at,
+          detected_at: new Date().toISOString()
+        }
+      });
+      await this.proofEventRepository.save(proofEvent);
+      this.logger.warn(`SLA violation detected for request ${request.id}`);
+    }
+  }
+
+  async getSlaViolations(): Promise<SlaViolationItem[]> {
+    const requests = await this.deletionRequestRepository.find({
       where: { status: DeletionRequestStatus.SLA_VIOLATED },
-      order: { created_at: 'ASC' },
+      order: { created_at: 'DESC' }
     });
 
     const now = Date.now();
-    return rows.map((r) => ({
+    return requests.map(r => ({
       request_id: r.id,
       subject_id: r.subject_id,
-      stuck_since: r.created_at.toISOString(),
-      duration_minutes: Math.floor((now - r.created_at.getTime()) / 60_000),
+      stuck_since: r.created_at,
+      duration_minutes: Math.floor((now - r.created_at.getTime()) / 60_000)
     }));
-  }
-
-  async checkSlaViolations(): Promise<number> {
-    const thresholdMin = Number(this.configService.get('SLA_THRESHOLD_MINUTES') ?? 5);
-    const thresholdMs = thresholdMin * 60 * 1000;
-    const cutoff = new Date(Date.now() - thresholdMs);
-
-    const candidates = await this.deletionRequestRepository
-      .createQueryBuilder('r')
-      .where('r.status IN (:...statuses)', {
-        statuses: [
-          DeletionRequestStatus.PENDING,
-          DeletionRequestStatus.RUNNING,
-          DeletionRequestStatus.PARTIAL_COMPLETED,
-        ],
-      })
-      .andWhere('r.created_at < :cutoff', { cutoff })
-      .getMany();
-
-    let flagged = 0;
-    for (const row of candidates) {
-      const did = await this.flagViolation(row);
-      if (did) {
-        flagged += 1;
-      }
-    }
-    return flagged;
-  }
-
-  private async flagViolation(req: DeletionRequest): Promise<boolean> {
-    const upd = await this.deletionRequestRepository.update(
-      {
-        id: req.id,
-        status: In([
-          DeletionRequestStatus.PENDING,
-          DeletionRequestStatus.RUNNING,
-          DeletionRequestStatus.PARTIAL_COMPLETED,
-        ]),
-      },
-      { status: DeletionRequestStatus.SLA_VIOLATED },
-    );
-
-    if (!upd.affected) {
-      return false;
-    }
-
-    try {
-      await this.appendSlaProofEvent(req.id);
-    } catch (err) {
-      this.logger.error(`Failed to record SLA proof for ${req.id}`, err);
-    }
-
-    this.logger.warn(`SLA_VIOLATED for request ${req.id} (subject_id=${req.subject_id})`);
-    return true;
-  }
-
-  private async appendSlaProofEvent(requestId: string): Promise<void> {
-    const timestampIso = new Date().toISOString();
-    const thresholdMin = Number(this.configService.get('SLA_THRESHOLD_MINUTES') ?? 5);
-    const dedupeKey = `${requestId}:${SLA_SERVICE_NAME}:${EventTypes.SLA_VIOLATED}`;
-    const payload: Record<string, unknown> = {
-      timestamp: timestampIso,
-      threshold_minutes: thresholdMin,
-      message: 'Deletion workflow exceeded configured SLA time',
-    };
-
-    try {
-      await this.proofChainService.appendEvent({
-        request_id: requestId,
-        service_name: SLA_SERVICE_NAME,
-        event_type: EventTypes.SLA_VIOLATED,
-        dedupe_key: dedupeKey,
-        payload,
-      });
-    } catch (error) {
-      if (error instanceof QueryFailedError) {
-        const code = (error as { driverError?: { code?: string } }).driverError?.code;
-        if (code === '23505') {
-          return;
-        }
-      }
-      throw error;
-    }
   }
 }

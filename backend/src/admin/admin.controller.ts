@@ -2,7 +2,7 @@ import { Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CircuitBreakerService, CircuitSnapshot } from './circuit-breaker.service';
 import { DlqReplayResult, DlqReplayService } from './dlq-replay.service';
-import { SlaMonitorService, SlaViolationRow } from './sla-monitor.service';
+import { SlaMonitorService, SlaViolationItem } from './sla-monitor.service';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -10,7 +10,7 @@ export class AdminController {
   constructor(
     private circuitBreakerService: CircuitBreakerService,
     private dlqReplayService: DlqReplayService,
-    private slaMonitorService: SlaMonitorService,
+    private slaMonitorService: SlaMonitorService
   ) {}
 
   @Get('circuits')
@@ -18,16 +18,6 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Current circuit states' })
   async getCircuitStates(): Promise<CircuitSnapshot[]> {
     return this.circuitBreakerService.getCircuitStates();
-  }
-
-  @Get('sla-violations')
-  @ApiOperation({
-    summary: 'List deletion requests flagged as SLA_VIOLATED',
-    description: 'Includes request_id, subject_id, stuck_since, and duration_minutes',
-  })
-  @ApiResponse({ status: 200, description: 'SLA violation rows' })
-  async getSlaViolations(): Promise<SlaViolationRow[]> {
-    return this.slaMonitorService.listViolations();
   }
 
   @Post('dlq/:queue/replay')
@@ -39,5 +29,12 @@ export class AdminController {
   @ApiResponse({ status: 201, description: 'DLQ messages replayed' })
   async replayDlq(@Param('queue') queue: string): Promise<DlqReplayResult> {
     return this.dlqReplayService.replay(queue);
+  }
+
+  @Get('sla-violations')
+  @ApiOperation({ summary: 'List deletion requests that have exceeded the SLA threshold' })
+  @ApiResponse({ status: 200, description: 'SLA-violated requests' })
+  async getSlaViolations(): Promise<SlaViolationItem[]> {
+    return this.slaMonitorService.getSlaViolations();
   }
 }
