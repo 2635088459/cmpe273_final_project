@@ -318,9 +318,4 @@ Execution order:
 2. Add two top-level README links: Final Report (Google Doc) and Presentation (Google Slides).
 3. Add a docs index page that connects design-docs, demos, and personal reports to reduce reviewer lookup time.
 
-## 7. Team Communication Cadence
 
-- Day 1: everyone confirms ownership and starts drafting
-- Day 2: everyone submits first complete version
-- Day 3: integration fixes, wording alignment, final polish
-- Final day: dry run for presentation and final report freeze
