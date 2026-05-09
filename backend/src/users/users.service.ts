@@ -107,6 +107,96 @@ const DEMO_USER_SEEDS: DemoUserSeed[] = [
       { event: 'export_request', format: 'json', source: 'beta-dashboard' },
     ],
   },
+  {
+    id: 'a1b2c3d4-0000-0000-0000-000000000006',
+    username: 'frank',
+    email: 'frank@example.com',
+    region: 'North America',
+    plan: 'Starter',
+    department: 'Finance',
+    searchDocuments: [
+      'frank finance dashboard notes for monthly reconciliation and retention checks',
+      'frank profile snippet with invoice export behavior and alert preferences',
+      'frank search result about compliance statements and audit packet download',
+    ],
+    analyticsEvents: [
+      { event: 'page_view', route: '/billing', device: 'web', workspace: 'finance' },
+      { event: 'statement_export', format: 'csv', period: 'monthly' },
+      { event: 'alert_toggle', channel: 'email', alert: 'invoice_due' },
+    ],
+  },
+  {
+    id: 'a1b2c3d4-0000-0000-0000-000000000007',
+    username: 'grace',
+    email: 'grace@example.com',
+    region: 'Europe',
+    plan: 'Enterprise',
+    department: 'Legal',
+    searchDocuments: [
+      'grace legal review notes on data retention clauses and consent records',
+      'grace profile card with jurisdiction scope and compliance handoff history',
+      'grace query result about policy archive and document attestation references',
+    ],
+    analyticsEvents: [
+      { event: 'page_view', route: '/policies', device: 'web', locale: 'en-GB' },
+      { event: 'policy_compare', left: '2026.03', right: '2026.05' },
+      { event: 'attestation_download', format: 'pdf', purpose: 'audit' },
+    ],
+  },
+  {
+    id: 'a1b2c3d4-0000-0000-0000-000000000008',
+    username: 'heidi',
+    email: 'heidi@example.com',
+    region: 'Asia Pacific',
+    plan: 'Business',
+    department: 'Engineering',
+    searchDocuments: [
+      'heidi engineering incident notes for queue retry behavior and tracing context',
+      'heidi profile snippet with feature flags and service ownership mapping',
+      'heidi search result about event stream replay and deletion pipeline tuning',
+    ],
+    analyticsEvents: [
+      { event: 'page_view', route: '/observability', device: 'web', team: 'platform' },
+      { event: 'trace_open', trace_type: 'deletion', source: 'jaeger' },
+      { event: 'dashboard_pin', dashboard: 'pipeline-health', scope: 'personal' },
+    ],
+  },
+  {
+    id: 'a1b2c3d4-0000-0000-0000-000000000009',
+    username: 'ivan',
+    email: 'ivan@example.com',
+    region: 'Latin America',
+    plan: 'Business',
+    department: 'Customer Success',
+    searchDocuments: [
+      'ivan customer success playbook notes on renewal outreach and escalation paths',
+      'ivan profile snippet with account health scoring and engagement summary',
+      'ivan search result about lifecycle milestones and support response latency',
+    ],
+    analyticsEvents: [
+      { event: 'page_view', route: '/accounts', device: 'web', segment: 'renewal' },
+      { event: 'health_score_review', account_tier: 'growth', score: 82 },
+      { event: 'success_plan_export', format: 'json', cadence: 'quarterly' },
+    ],
+  },
+  {
+    id: 'a1b2c3d4-0000-0000-0000-000000000010',
+    username: 'judy',
+    email: 'judy@example.com',
+    region: 'Middle East',
+    plan: 'Starter',
+    department: 'HR',
+    searchDocuments: [
+      'judy hr onboarding checklist with consent receipt and profile verification tasks',
+      'judy profile snippet with workforce segment and communication preferences',
+      'judy query result on training completion logs and people analytics filters',
+    ],
+    analyticsEvents: [
+      { event: 'page_view', route: '/people', device: 'web', module: 'onboarding' },
+      { event: 'training_assign', course: 'privacy-basics', audience: 'new-hires' },
+      { event: 'directory_export', format: 'csv', scope: 'department' },
+    ],
+  },
 ];
 
 const DEMO_USERS = DEMO_USER_SEEDS.map(({ id, username, email }) => ({ id, username, email }));

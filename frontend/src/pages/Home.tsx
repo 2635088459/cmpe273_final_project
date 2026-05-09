@@ -6,8 +6,10 @@ import {
   ProofEvent,
   DeletionNotificationRecord,
   ProofVerifyResult,
+  DeletionAttestation,
   getDeletionNotification,
   getDeletionProof,
+  getDeletionAttestation,
   listDeletionRequests,
   verifyProofChain,
 } from "../services/api";
@@ -37,6 +39,28 @@ function formatLabel(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function normalizeRequiredServices(required: unknown): { count: number; list: string[] } {
+  if (Array.isArray(required)) {
+    const list = required
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+    return { count: list.length, list };
+  }
+
+  if (typeof required === "number" && Number.isFinite(required)) {
+    return { count: required, list: [] };
+  }
+
+  if (typeof required === "string") {
+    const parsed = Number(required);
+    if (Number.isFinite(parsed)) {
+      return { count: parsed, list: [] };
+    }
+  }
+
+  return { count: 0, list: [] };
 }
 
 function buildProofExportFileName(request: DeletionRequest | null, extension: string) {
@@ -144,8 +168,11 @@ function Home() {
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isProofLoading, setIsProofLoading] = useState(false);
+  const [isAttestationLoading, setIsAttestationLoading] = useState(false);
   const [proofVerify, setProofVerify] = useState<ProofVerifyResult | null>(null);
   const [notification, setNotification] = useState<DeletionNotificationRecord | null>(null);
+  const [attestation, setAttestation] = useState<DeletionAttestation | null>(null);
+  const [attestationError, setAttestationError] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -193,11 +220,43 @@ function Home() {
   useEffect(() => {
     let isActive = true;
 
+    async function loadAttestation(requestId: string) {
+      setIsAttestationLoading(true);
+      setAttestationError("");
+      setAttestation(null);
+
+      try {
+        const att = await getDeletionAttestation(requestId);
+        if (isActive) {
+          setAttestation(att);
+          setAttestationError("");
+        }
+      } catch (error: any) {
+        if (isActive) {
+          const statusCode = error?.response?.status;
+          const fallback = "Attestation request failed. Please retry.";
+          setAttestation(null);
+          setAttestationError(
+            statusCode
+              ? `Attestation unavailable (HTTP ${statusCode}).`
+              : fallback
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsAttestationLoading(false);
+        }
+      }
+    }
+
     async function loadProof() {
       if (!selectedRequest) {
         setProof(null);
         setProofVerify(null);
         setNotification(null);
+        setAttestation(null);
+        setAttestationError("");
+        setIsAttestationLoading(false);
         return;
       }
 
@@ -234,12 +293,17 @@ function Home() {
             setNotification(null);
           }
         }
+
+        await loadAttestation(selectedRequest.id);
       } catch (error) {
         if (isActive) {
           setProof(null);
           setExpandedEventIds([]);
           setProofVerify(null);
           setNotification(null);
+          setAttestation(null);
+          setAttestationError("");
+          setIsAttestationLoading(false);
         }
       } finally {
         if (isActive) {
@@ -254,6 +318,30 @@ function Home() {
       isActive = false;
     };
   }, [selectedRequest]);
+
+  async function retryAttestation() {
+    if (!selectedRequest) {
+      return;
+    }
+
+    setIsAttestationLoading(true);
+    setAttestationError("");
+    setAttestation(null);
+
+    try {
+      const att = await getDeletionAttestation(selectedRequest.id);
+      setAttestation(att);
+    } catch (error: any) {
+      const statusCode = error?.response?.status;
+      setAttestationError(
+        statusCode
+          ? `Attestation unavailable (HTTP ${statusCode}).`
+          : "Attestation request failed. Please retry."
+      );
+    } finally {
+      setIsAttestationLoading(false);
+    }
+  }
 
   function toggleEvent(eventId: string) {
     setExpandedEventIds((current) =>
@@ -574,6 +662,130 @@ function Home() {
                     ? "Proof verified ✓ (hash chain intact)"
                     : `Proof tampered ✗ — ${proofVerify.message || "verification failed"}`}
                 </p>
+              ) : null}
+
+              {isAttestationLoading || attestation || attestationError ? (
+                <div className="cryptographic-attestation-card">
+                  <div className="attestation-header">
+                    <h4>🔐 Cryptographic Attestation (Ed25519 Signed)</h4>
+                    {attestation ? (
+                      <span className={attestation.signature ? "attestation-verified" : ""}>
+                        {attestation.signature ? "✓ Signed" : "Unsigned"}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {isAttestationLoading ? (
+                    <p className="attestation-loading">Loading signed attestation...</p>
+                  ) : null}
+
+                  {!isAttestationLoading && attestationError ? (
+                    <div className="inline-message error">
+                      <strong>Attestation unavailable</strong>
+                      <span>{attestationError}</span>
+                      <button className="button-secondary button-compact" onClick={retryAttestation}>
+                        Retry
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {!isAttestationLoading && attestation ? (
+                    <>
+                      {(() => {
+                        const required = normalizeRequiredServices(
+                          attestation.operational_evidence.required_services
+                        );
+                        const statusServiceCount = Object.keys(
+                          attestation.operational_evidence.step_statuses || {}
+                        ).length;
+
+                        return (
+                          <>
+                      <div className="attestation-answer">
+                        <h5>Deletion Proof Question:</h5>
+                        <p className="question">{attestation.answer.question}</p>
+                        <p className={`answer ${attestation.answer.can_prove_deleted_across_all_systems ? "answer-yes" : "answer-no"}`}>
+                          <strong>
+                            {attestation.answer.can_prove_deleted_across_all_systems
+                              ? "✓ YES - We can cryptographically prove deletion across all systems"
+                              : "✗ NO - Cannot prove complete deletion"}
+                          </strong>
+                        </p>
+                        <p className="rationale">{attestation.answer.rationale}</p>
+                      </div>
+
+                      <div className="attestation-grid">
+                        <div className="attestation-item">
+                          <span className="label">Algorithm</span>
+                          <strong>{attestation.signature.algorithm}</strong>
+                        </div>
+                        <div className="attestation-item">
+                          <span className="label">Key ID</span>
+                          <code>{attestation.signature.key_id}</code>
+                        </div>
+                        <div className="attestation-item">
+                          <span className="label">Services Verified</span>
+                          <strong>{required.count || statusServiceCount}</strong>
+                          <span className="attestation-subtle">
+                            {statusServiceCount} services reported statuses
+                          </span>
+                        </div>
+                        <div className="attestation-item">
+                          <span className="label">Proof Events</span>
+                          <strong>{attestation.total_proof_events}</strong>
+                        </div>
+                      </div>
+
+                      <details className="attestation-details">
+                        <summary>View Signature Details</summary>
+                        <div className="signature-content">
+                          <div className="signature-field">
+                            <label>Signed Payload Hash (SHA256):</label>
+                            <code className="hash-code">{attestation.signature.signed_payload_sha256}</code>
+                          </div>
+                          <div className="signature-field">
+                            <label>Signature (Base64):</label>
+                            <code className="sig-code">{attestation.signature.signature_base64.substring(0, 80)}...</code>
+                          </div>
+                          <div className="signature-field">
+                            <label>Public Key (for verification):</label>
+                            <code className="key-code">{attestation.verification_material.public_key_pem.substring(0, 80)}...</code>
+                          </div>
+                        </div>
+                      </details>
+
+                      <details className="operational-evidence-details">
+                        <summary>View Operational Evidence</summary>
+                        <div className="evidence-content">
+                          {required.list.length > 0 ? (
+                            <>
+                              <h6>Required Services:</h6>
+                              <div className="required-services-chips">
+                                {required.list.map((service) => (
+                                  <span key={service} className="service-chip">
+                                    {formatLabel(service)}
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          ) : null}
+                          <h6>Services Involved:</h6>
+                          <ul>
+                            {Object.entries(attestation.operational_evidence.step_statuses).map(([service, status]) => (
+                              <li key={service}>
+                                <span className={`status-badge ${String(status).toLowerCase()}`}>{String(status)}</span>
+                                <strong>{formatLabel(service)}</strong>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </details>
+                          </>
+                        );
+                      })()}
+                    </>
+                  ) : null}
+                </div>
               ) : null}
 
               {notification ? (

@@ -104,6 +104,16 @@ export class DeletionRequestController {
     return this.deletionRequestService.observeDeletionProgress(id);
   }
 
+  @Get('proof/public-key')
+  @ApiOperation({
+    summary: 'Get proof attestation public key',
+    description: 'Returns the public key used to verify signed deletion attestation reports',
+  })
+  @ApiResponse({ status: 200, description: 'Proof attestation public key' })
+  async getProofPublicKey() {
+    return this.deletionRequestService.getProofPublicKey();
+  }
+
   @Get(':id/proof/verify')
   @ApiOperation({
     summary: 'Verify tamper-evident proof hash chain',
@@ -139,6 +149,25 @@ export class DeletionRequestController {
     @Param('id', ParseUUIDPipe) id: string
   ): Promise<DeletionProofResponseDto> {
     return this.deletionRequestService.getDeletionProof(id);
+  }
+
+  @Get(':id/proof/attestation')
+  @ApiOperation({
+    summary: 'Get signed deletion attestation report',
+    description:
+      'Returns a signed, tamper-resistant report with cryptographic hash-chain verification and operational evidence across required cleanup services',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Deletion request UUID',
+    example: 'ffe07b3a-93cd-4c0d-8b0a-9c5e8d2f1a6b',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Signed deletion attestation report',
+  })
+  async getDeletionAttestation(@Param('id', ParseUUIDPipe) id: string) {
+    return this.deletionRequestService.getDeletionAttestation(id);
   }
 
   @Get(':id')

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useRef, useState } from "react";
 import {
   bulkDeleteCsv,
   BulkDeletionResponse,
@@ -18,12 +18,44 @@ function BulkUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState<BulkDeletionResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
+    if (file && !file.name.toLowerCase().endsWith(".csv")) {
+      setSelectedFile(null);
+      setErrorMessage("Only .csv files are accepted.");
+      return;
+    }
     setSelectedFile(file);
     setResult(null);
     setErrorMessage("");
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragActive(false);
+    const file = e.dataTransfer.files?.[0] ?? null;
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setSelectedFile(null);
+      setErrorMessage("Only .csv files are accepted.");
+      return;
+    }
+    setSelectedFile(file);
+    setResult(null);
+    setErrorMessage("");
+  };
+
+  const handleTemplateDownload = () => {
+    const csv = ["subject_id", "alice", "bob", "", "alice"].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "bulk-deletion-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleUpload = async () => {
@@ -64,12 +96,14 @@ function BulkUpload() {
   };
 
   return (
-    <div className="page-grid">
+    <div className="page-grid bulk-upload-page">
       <section className="hero-panel">
         <div className="hero-spotlight">
           <div className="hero-copy">
             <span className="eyebrow">Batch operations</span>
-            <h1>Upload a CSV to submit multiple deletion requests at once.</h1>
+            <h1 className="bulk-hero-title">
+              Upload a CSV to submit multiple deletion requests at once.
+            </h1>
             <p>
               Prepare a CSV file with a <code>subject_id</code> column. Each
               unique, non-blank row creates one deletion request. Duplicates and
@@ -143,13 +177,48 @@ function BulkUpload() {
                   ref={fileInputRef}
                   type="file"
                   accept=".csv"
-                  className="text-input"
+                  className="visually-hidden-input"
                   onChange={handleFileChange}
                 />
+                <div
+                  className={`file-dropzone ${isDragActive ? "is-drag-active" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragActive(true);
+                  }}
+                  onDragLeave={() => setIsDragActive(false)}
+                  onDrop={handleDrop}
+                >
+                  <div className="file-dropzone-copy">
+                    <strong>
+                      {selectedFile ? selectedFile.name : "Drag and drop a CSV file here"}
+                    </strong>
+                    <span>
+                      {selectedFile
+                        ? `${(selectedFile.size / 1024).toFixed(1)} KB`
+                        : "or click to choose a file from your computer"}
+                    </span>
+                  </div>
+                  <div className="file-dropzone-actions">
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Choose CSV
+                    </button>
+                    <button
+                      type="button"
+                      className="button-ghost"
+                      onClick={handleTemplateDownload}
+                    >
+                      Download template
+                    </button>
+                  </div>
+                </div>
                 {selectedFile && (
-                  <span className="subtle-copy">
-                    Selected: <strong>{selectedFile.name}</strong> (
-                    {(selectedFile.size / 1024).toFixed(1)} KB)
+                  <span className="subtle-copy file-meta">
+                    Ready to upload: <strong>{selectedFile.name}</strong>
                   </span>
                 )}
               </div>
@@ -317,26 +386,14 @@ function SummaryCard({ result }: { result: BulkDeletionResponse }) {
 
 function ResultsTable({ rows }: { rows: BulkDeletionRowResult[] }) {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          fontSize: "0.82rem",
-        }}
-      >
+    <div className="bulk-results-wrap">
+      <table className="bulk-results-table">
         <thead>
           <tr>
             {["Row", "Subject ID", "Status", "Reason / Request ID"].map((h) => (
               <th
                 key={h}
-                style={{
-                  textAlign: "left",
-                  padding: "8px 12px",
-                  borderBottom: "1px solid var(--border-soft)",
-                  color: "var(--text-muted)",
-                  fontWeight: 600,
-                }}
+                className="bulk-results-head"
               >
                 {h}
               </th>
@@ -346,14 +403,14 @@ function ResultsTable({ rows }: { rows: BulkDeletionRowResult[] }) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.row}>
-              <td style={cellStyle}>{row.row}</td>
-              <td style={{ ...cellStyle, fontFamily: "monospace" }}>
-                {row.subject_id || <em style={{ color: "var(--text-muted)" }}>(blank)</em>}
+              <td className="bulk-results-cell">{row.row}</td>
+              <td className="bulk-results-cell bulk-results-mono">
+                {row.subject_id || <em className="bulk-results-blank">(blank)</em>}
               </td>
-              <td style={cellStyle}>
+              <td className="bulk-results-cell">
                 <span className={statusChipClass(row.status)}>{row.status}</span>
               </td>
-              <td style={{ ...cellStyle, fontFamily: "monospace", fontSize: "0.75rem" }}>
+              <td className="bulk-results-cell bulk-results-mono bulk-results-reason">
                 {row.status === "created"
                   ? row.request_id
                   : row.reason ?? "—"}
@@ -365,11 +422,5 @@ function ResultsTable({ rows }: { rows: BulkDeletionRowResult[] }) {
     </div>
   );
 }
-
-const cellStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  borderBottom: "1px solid var(--border-soft)",
-  color: "var(--text-secondary, #ccc)",
-};
 
 export default BulkUpload;
