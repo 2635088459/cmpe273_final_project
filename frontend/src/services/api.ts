@@ -238,4 +238,16 @@ export async function getCircuitStates(): Promise<CircuitSnapshot[]> {
   return response.data;
 }
 
+export type SlaViolation = {
+  request_id: string;
+  subject_id: string;
+  stuck_since: string;
+  duration_minutes: number;
+};
+
+export async function getSlaViolations(): Promise<SlaViolation[]> {
+  const response = await API.get<SlaViolation[]>("/admin/sla-violations");
+  return response.data;
+}
+
 export default API;
