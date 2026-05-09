@@ -14,6 +14,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { HealthAggregatorModule } from './health/health.module';
 import { AdminModule } from './admin/admin.module';
 import { SchemaBootstrapService } from './database/schema-bootstrap.service';
+import { ProofModule } from './proof/proof.module';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { SchemaBootstrapService } from './database/schema-bootstrap.service';
       }),
       inject: [ConfigService]
     }),
-    TypeOrmModule.forFeature([ProofEvent, ProcessedEvent]), // For EventConsumerService
+    TypeOrmModule.forFeature([ProcessedEvent]),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     DeletionRequestModule,
@@ -44,7 +45,8 @@ import { SchemaBootstrapService } from './database/schema-bootstrap.service';
     UsersModule,
     MetricsModule,
     HealthAggregatorModule,
-    AdminModule
+    AdminModule,
+    ProofModule,
   ],
   providers: [
     SchemaBootstrapService,

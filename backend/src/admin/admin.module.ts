@@ -6,10 +6,11 @@ import { CircuitBreakerService } from './circuit-breaker.service';
 import { DlqReplayService } from './dlq-replay.service';
 import { RedisCircuitStore } from './redis-circuit-store.service';
 import { SlaMonitorService } from './sla-monitor.service';
-import { DeletionRequest, ProofEvent } from '../database/entities';
+import { DeletionRequest } from '../database/entities';
+import { ProofModule } from '../proof/proof.module';
 
 @Module({
-  imports: [ConfigModule, TypeOrmModule.forFeature([DeletionRequest, ProofEvent])],
+  imports: [ConfigModule, TypeOrmModule.forFeature([DeletionRequest]), ProofModule],
   controllers: [AdminController],
   providers: [CircuitBreakerService, DlqReplayService, RedisCircuitStore, SlaMonitorService],
   exports: [CircuitBreakerService, SlaMonitorService]

@@ -1,6 +1,7 @@
 import axios from "axios";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import API, {
+  API_BASE_URL,
   createDeletionRequest,
   CreateDeletionRequestResponse,
   DeletionStep,
@@ -23,11 +24,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 function sseBaseUrl(): string {
-  const raw =
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.REACT_APP_API_URL ||
-    API.defaults.baseURL ||
-    "http://localhost:3001";
+  const raw = API.defaults.baseURL || API_BASE_URL || "http://localhost:3001";
   return String(raw).replace(/\/$/, "");
 }
 

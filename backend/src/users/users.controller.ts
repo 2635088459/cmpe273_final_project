@@ -26,7 +26,7 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Restore demo users',
-    description: 'Recreates the seeded demo users so deletion demos can be repeated'
+    description: 'Recreates the seeded demo users and repopulates search, analytics, and cache demo data so deletion proofs show non-empty cleanup results'
   })
   @ApiResponse({
     status: 200,

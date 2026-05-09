@@ -127,7 +127,18 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
         service_name: SERVICE_NAME,
         trace_id,
         timestamp: new Date().toISOString(),
-        metadata: { deleted_records: deletedRecords, subject_id },
+        metadata: {
+          deleted_records: deletedRecords,
+          subject_id,
+          lookup_strategy: byId ? 'id' : 'username',
+          deleted_user_summary: user
+            ? {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+              }
+            : null,
+        },
       });
     } catch (err: any) {
       this.logger.error(`Deletion failed for request_id=${request_id}`, err);
