@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backup-service
-          image: aaronshan2635088459/erasegraph-backup-service:latest
+          image: aaronshan2635088459/erasegraph-backup-service:richer-proof-20260508-1
           imagePullPolicy: Always
           ports:
             - containerPort: 3005

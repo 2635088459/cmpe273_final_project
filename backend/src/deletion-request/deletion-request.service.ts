@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, MessageEvent, NotFoundException } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -225,6 +226,7 @@ export class DeletionRequestService {
 
   async verifyProofChain(id: string): Promise<{
     valid: boolean;
+    verified: boolean;
     request_id: string;
     message?: string;
     broken_event_id?: string;
@@ -240,7 +242,7 @@ export class DeletionRequestService {
     });
 
     if (events.length === 0) {
-      return { valid: true, request_id: id, message: 'no_proof_events' };
+      return { valid: true, verified: true, request_id: id, message: 'no_proof_events' };
     }
 
     let expectedPrevious = genesisHashForRequest(id);
@@ -249,6 +251,7 @@ export class DeletionRequestService {
       if (!e.event_hash || e.previous_hash == null) {
         return {
           valid: false,
+          verified: false,
           request_id: id,
           message: 'incomplete_chain_or_legacy_row',
           broken_event_id: e.id,
@@ -258,6 +261,7 @@ export class DeletionRequestService {
       if (e.previous_hash !== expectedPrevious) {
         return {
           valid: false,
+          verified: false,
           request_id: id,
           message: 'previous_hash_mismatch',
           broken_event_id: e.id,
@@ -280,6 +284,7 @@ export class DeletionRequestService {
       if (expectedHash !== e.event_hash) {
         return {
           valid: false,
+          verified: false,
           request_id: id,
           message: 'event_hash_mismatch',
           broken_event_id: e.id,
@@ -289,7 +294,7 @@ export class DeletionRequestService {
       expectedPrevious = e.event_hash;
     }
 
-    return { valid: true, request_id: id };
+    return { valid: true, verified: true, request_id: id };
   }
 
   async getDeletionNotification(id: string): Promise<{
@@ -430,5 +435,77 @@ export class DeletionRequestService {
         status: newStatus,
       });
     }
+  }
+
+  async ensureDeletionRequestExists(id: string): Promise<void> {
+    const found = await this.deletionRequestRepository.exist({ where: { id } });
+    if (!found) {
+      throw new NotFoundException(`Deletion request with ID ${id} not found`);
+    }
+  }
+
+  observeDeletionProgress(requestId: string): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber) => {
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let stopped = false;
+      const cleanup = () => {
+        stopped = true;
+        if (intervalId !== null) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      };
+
+      let lastSig = '';
+
+      const tick = async () => {
+        if (stopped) {
+          return;
+        }
+        try {
+          const dto = await this.getDeletionRequest(requestId);
+          const sig = JSON.stringify({
+            st: dto.status,
+            steps: dto.steps.map((s) => [s.step_name, s.status, s.updated_at]),
+          });
+          if (sig !== lastSig) {
+            lastSig = sig;
+            subscriber.next({
+              data: JSON.stringify({
+                status: dto.status,
+                subject_id: dto.subject_id,
+                steps: dto.steps,
+              }),
+            } as MessageEvent);
+          }
+          if (
+            dto.status === DeletionRequestStatus.COMPLETED ||
+            dto.status === DeletionRequestStatus.FAILED
+          ) {
+            subscriber.next({
+              type: 'done',
+              data: JSON.stringify({ status: dto.status }),
+            } as MessageEvent);
+            subscriber.complete();
+            cleanup();
+          }
+        } catch (err) {
+          subscriber.error(err);
+          cleanup();
+        }
+      };
+
+      void (async () => {
+        await tick();
+        if (stopped) {
+          return;
+        }
+        intervalId = setInterval(() => {
+          void tick();
+        }, 500);
+      })();
+
+      return cleanup;
+    });
   }
 }

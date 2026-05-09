@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS deletion_requests (
     trace_id      VARCHAR(64),
 
     CONSTRAINT chk_request_status CHECK (
-        status IN ('PENDING', 'RUNNING', 'PARTIAL_COMPLETED', 'COMPLETED', 'FAILED')
+        status IN ('PENDING', 'RUNNING', 'PARTIAL_COMPLETED', 'COMPLETED', 'FAILED', 'SLA_VIOLATED')
     )
 );
 

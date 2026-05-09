@@ -3,8 +3,10 @@ import {
   CircuitSnapshot,
   HealthAllResponse,
   ServiceStatus,
+  SlaViolation,
   getCircuitStates,
   getHealthAll,
+  getSlaViolations,
 } from "../services/api";
 
 function formatDate(value?: string | null) {
@@ -75,24 +77,45 @@ function CircuitRow({ circuit }: { circuit: CircuitSnapshot }) {
   );
 }
 
+function SlaViolationRow({ v }: { v: SlaViolation }) {
+  return (
+    <div className="admin-service-row">
+      <div className="admin-service-info">
+        <strong style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>{v.request_id}</strong>
+        <span className="admin-service-meta">
+          subject: {v.subject_id} · stuck {v.duration_minutes}m ·{" "}
+          since {formatDate(v.stuck_since)}
+        </span>
+      </div>
+      <span className="status-chip failed">SLA_VIOLATED</span>
+    </div>
+  );
+}
+
 function Admin() {
   const [health, setHealth] = useState<HealthAllResponse | null>(null);
   const [circuits, setCircuits] = useState<CircuitSnapshot[]>([]);
+  const [slaViolations, setSlaViolations] = useState<SlaViolation[]>([]);
   const [healthError, setHealthError] = useState("");
   const [circuitsError, setCircuitsError] = useState("");
+  const [slaError, setSlaError] = useState("");
   const [isLoadingHealth, setIsLoadingHealth] = useState(true);
   const [isLoadingCircuits, setIsLoadingCircuits] = useState(true);
+  const [isLoadingSla, setIsLoadingSla] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   async function loadAll() {
     setIsLoadingHealth(true);
     setIsLoadingCircuits(true);
+    setIsLoadingSla(true);
     setHealthError("");
     setCircuitsError("");
+    setSlaError("");
 
-    const [healthResult, circuitsResult] = await Promise.allSettled([
+    const [healthResult, circuitsResult, slaResult] = await Promise.allSettled([
       getHealthAll(),
       getCircuitStates(),
+      getSlaViolations(),
     ]);
 
     if (healthResult.status === "fulfilled") {
@@ -108,6 +131,13 @@ function Admin() {
       setCircuitsError("Unable to reach /admin/circuits.");
     }
     setIsLoadingCircuits(false);
+
+    if (slaResult.status === "fulfilled") {
+      setSlaViolations(slaResult.value);
+    } else {
+      setSlaError("Unable to reach /admin/sla-violations.");
+    }
+    setIsLoadingSla(false);
     setLastRefreshed(new Date());
   }
 
@@ -242,32 +272,36 @@ function Admin() {
 
         <div className="content-panel admin-panel-section">
           <div className="section-heading">
-            <h2>Metrics dashboard</h2>
-            <p>Live Prometheus metrics visualised in Grafana — deletion pipeline throughput, step status, and proof event counts.</p>
+            <h2>SLA Violations</h2>
+            <p>
+              Deletion requests stuck in PENDING / RUNNING / PARTIAL_COMPLETED beyond the
+              configured SLA threshold.
+            </p>
           </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <a
-              href="http://34.58.58.190/d/erasegraph-main/erasegraph-deletion-pipeline?orgId=1&refresh=5s"
-              target="_blank"
-              rel="noreferrer"
-              className="button-primary"
-              style={{ textDecoration: "none" }}
-            >
-              Open Grafana Dashboard ↗
-            </a>
-            <a
-              href="http://34.58.58.190"
-              target="_blank"
-              rel="noreferrer"
-              className="button-secondary"
-              style={{ textDecoration: "none" }}
-            >
-              Grafana Home ↗
-            </a>
-          </div>
-          <p style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
-            Login: <code>admin</code> / <code>erasegraph2026</code>
-          </p>
+
+          {slaError ? (
+            <div className="inline-message error" role="alert">
+              <strong>SLA data unavailable</strong>
+              <span>{slaError}</span>
+            </div>
+          ) : isLoadingSla ? (
+            <div className="empty-state">
+              <div><h3>Loading SLA violations</h3></div>
+            </div>
+          ) : slaViolations.length === 0 ? (
+            <div className="empty-state">
+              <div>
+                <h3>No SLA violations</h3>
+                <p>All active requests are within the SLA threshold.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="admin-service-list">
+              {slaViolations.map((v) => (
+                <SlaViolationRow key={v.request_id} v={v} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </div>

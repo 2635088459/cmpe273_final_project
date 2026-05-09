@@ -1,10 +1,28 @@
 import axios from "axios";
 
+function resolveApiBaseUrl(): string {
+  const configuredUrl =
+    process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL;
+
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:3001";
+    }
+    return `${origin}/api`;
+  }
+
+  return "http://localhost:3001";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
 const API = axios.create({
-  baseURL:
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.REACT_APP_API_URL ||
-    "http://localhost:3001",
+  baseURL: API_BASE_URL,
   headers: {
     "X-Service-Token":
       process.env.REACT_APP_SERVICE_TOKEN || "Eg2026SvcInternal!",
@@ -57,6 +75,7 @@ export type ProofEvent = {
 
 export type ProofVerifyResult = {
   valid: boolean;
+  verified: boolean;
   request_id: string;
   message?: string;
   broken_event_id?: string;
@@ -202,8 +221,32 @@ export async function getHealthAll(): Promise<HealthAllResponse> {
   return response.data;
 }
 
+export type SlaViolationRow = {
+  request_id: string;
+  subject_id: string;
+  stuck_since: string;
+  duration_minutes: number;
+};
+
+export async function getSlaViolations(): Promise<SlaViolationRow[]> {
+  const response = await API.get<SlaViolationRow[]>("/admin/sla-violations");
+  return response.data;
+}
+
 export async function getCircuitStates(): Promise<CircuitSnapshot[]> {
   const response = await API.get<CircuitSnapshot[]>("/admin/circuits");
+  return response.data;
+}
+
+export type SlaViolation = {
+  request_id: string;
+  subject_id: string;
+  stuck_since: string;
+  duration_minutes: number;
+};
+
+export async function getSlaViolations(): Promise<SlaViolation[]> {
+  const response = await API.get<SlaViolation[]>("/admin/sla-violations");
   return response.data;
 }
 
