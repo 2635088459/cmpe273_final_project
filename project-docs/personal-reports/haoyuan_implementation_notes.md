@@ -92,7 +92,7 @@ The task spec mentioned caching in Redis with a 10-second TTL. I decided against
 
 ## DOC-K8S-001 — Kubernetes Deployment Guide
 
-The full guide is at `docs/kubernetes_deployment_guide.md`. It covers prerequisites, how to build images, how to apply the manifests, how to access services via port-forward, how to run the pod recovery demo, and common troubleshooting commands. I also included a table of common problems we hit during testing and how to fix them.
+The full guide is at `project-docs/kubernetes_deployment_guide.md`. It covers prerequisites, how to build images, how to apply the manifests, how to access services via port-forward, how to run the pod recovery demo, and common troubleshooting commands. I also included a table of common problems we hit during testing and how to fix them.
 
 ---
 
@@ -191,7 +191,7 @@ Here's a quick table of everything and where to find it:
 | Metrics endpoint | `backend/src/metrics/` (4 files) |
 | Rate limiting | `backend/src/app.module.ts` |
 | Health aggregation | `backend/src/health/` (3 files) |
-| K8s deployment guide | `docs/kubernetes_deployment_guide.md` |
+| K8s deployment guide | `project-docs/kubernetes_deployment_guide.md` |
 | Helm chart | `helm/erasegraph/` (17 files) |
 | Prometheus config | `infra/prometheus/prometheus.yml` |
 | Grafana config + dashboard | `infra/grafana/` (3 files) |

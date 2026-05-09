@@ -295,6 +295,6 @@ The status column is already the primary observable on the `deletion_requests` t
 | `frontend/src/pages/Admin.tsx` | **New** | Service health, circuit breakers, SLA violations sections |
 | `frontend/src/services/api.ts` | Modified | `getSlaViolations()`, `SlaViolation` type, `getCircuitStates()`, `getHealthAll()`, `getDeletionProofVerify()` |
 | `frontend/src/components/Navbar.tsx` | Modified | Added /history and /admin nav links |
-| `docs/subject_resolution_design.md` | **New** | DOC-SVC-001 design doc |
-| `docs/sakshat_patil_work_report.md` | **New** | This document |
+| `project-docs/subject_resolution_design.md` | **New** | DOC-SVC-001 design doc |
+| `project-docs/personal-reports/sakshat_patil_work_report.md` | **New** | This document |
 | `scripts/sakshat_patil_demo.sh` | **New** | Automated demo + verification script |

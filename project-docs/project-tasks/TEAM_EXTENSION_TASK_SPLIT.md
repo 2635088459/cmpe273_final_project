@@ -113,7 +113,7 @@ async canProcess(serviceName: string): Promise<boolean> {
 
 ### DOC-REL-001: Failure Handling Design Doc
 
-**File:** `docs/failure_retry_design.md`
+**File:** `project-docs/failure_retry_design.md`
 
 Write a short doc covering:
 - Why async systems need retry logic
@@ -193,7 +193,7 @@ ADD COLUMN event_hash VARCHAR(128);
 
 ### DOC-CONSISTENCY-001: Consistency Tradeoffs Doc
 
-**File:** `docs/consistency_tradeoffs.md`
+**File:** `project-docs/consistency_tradeoffs.md`
 
 Write a short doc covering:
 - Why deletion isn't instant in distributed systems
@@ -335,7 +335,7 @@ ThrottlerModule.forRoot({
 
 ### DOC-K8S-001: Kubernetes Deployment Guide
 
-**File:** `docs/kubernetes_deployment_guide.md`
+**File:** `project-docs/kubernetes_deployment_guide.md`
 
 Write a guide covering:
 - Prerequisites (Docker Desktop K8s or Minikube)
@@ -434,7 +434,7 @@ source.onmessage = (e) => setStatusResult(JSON.parse(e.data));
 
 ### DOC-SVC-001: Subject Resolution Service Design
 
-**File:** `docs/subject_resolution_design.md`
+**File:** `project-docs/subject_resolution_design.md`
 
 Write a short design doc covering:
 - Why different services may store data under different internal IDs for the same user

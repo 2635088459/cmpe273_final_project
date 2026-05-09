@@ -104,6 +104,53 @@ export type DeletionProof = {
   };
 };
 
+export type ProofPublicKey = {
+  key_id: string;
+  algorithm: string;
+  public_key_pem: string;
+};
+
+export type DeletionAttestation = {
+  report_version: string;
+  generated_at: string;
+  request_id: string;
+  subject_id: string;
+  trace_id: string;
+  request_status: string;
+  completed_at?: string | null;
+  total_proof_events: number;
+  cryptographic_verification: {
+    valid: boolean;
+    verified: boolean;
+    genesis_hash: string;
+    last_event_hash: string;
+  };
+  operational_evidence: {
+    required_services: number;
+    step_statuses: Record<string, string>;
+    services_summary: Record<string, any>;
+    retry_evidence?: any[];
+    failure_evidence?: any[];
+    skipped_evidence?: any[];
+  };
+  answer: {
+    question: string;
+    can_prove_deleted_across_all_systems: boolean;
+    rationale: string;
+  };
+  signature: {
+    algorithm: string;
+    key_id: string;
+    signature_base64: string;
+    signed_payload_sha256: string;
+  };
+  verification_material: {
+    key_id: string;
+    algorithm: string;
+    public_key_pem: string;
+  };
+};
+
 export type DemoUser = {
   id: string;
   username: string;
@@ -172,6 +219,20 @@ export async function getDeletionNotification(
   return response.data;
 }
 
+export async function getProofPublicKey(): Promise<ProofPublicKey> {
+  const response = await API.get<ProofPublicKey>("/deletions/proof/public-key");
+  return response.data;
+}
+
+export async function getDeletionAttestation(
+  id: string
+): Promise<DeletionAttestation> {
+  const response = await API.get<DeletionAttestation>(
+    `/deletions/${id}/proof/attestation`
+  );
+  return response.data;
+}
+
 export async function listDemoUsers(): Promise<DemoUser[]> {
   const response = await API.get<DemoUser[]>("/users");
 
@@ -218,18 +279,6 @@ export type CircuitSnapshot = {
 
 export async function getHealthAll(): Promise<HealthAllResponse> {
   const response = await API.get<HealthAllResponse>("/health/all");
-  return response.data;
-}
-
-export type SlaViolationRow = {
-  request_id: string;
-  subject_id: string;
-  stuck_since: string;
-  duration_minutes: number;
-};
-
-export async function getSlaViolations(): Promise<SlaViolationRow[]> {
-  const response = await API.get<SlaViolationRow[]>("/admin/sla-violations");
   return response.data;
 }
 
