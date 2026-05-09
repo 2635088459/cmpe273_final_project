@@ -1,10 +1,15 @@
 // Import tracing first
 import './tracing';
 
+import { webcrypto } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto as Crypto;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

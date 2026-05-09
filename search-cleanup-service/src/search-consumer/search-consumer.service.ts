@@ -107,6 +107,14 @@ export class SearchConsumerService implements OnModuleInit, OnModuleDestroy {
   private async processDeletion(event: DeletionRequestedEvent) {
     const { request_id, subject_id, trace_id } = event;
     try {
+      const existingDocuments = await this.pgPool!.query(
+        `SELECT id, indexed_text, created_at
+         FROM search_index_documents
+         WHERE subject_id = $1
+         ORDER BY created_at ASC`,
+        [subject_id],
+      );
+
       const r = await this.pgPool!.query(
         `DELETE FROM search_index_documents WHERE subject_id = $1`,
         [subject_id],
@@ -121,7 +129,15 @@ export class SearchConsumerService implements OnModuleInit, OnModuleDestroy {
         service_name: SERVICE_NAME,
         trace_id,
         timestamp: new Date().toISOString(),
-        metadata: { deleted_records: deleted, subject_id },
+        metadata: {
+          deleted_records: deleted,
+          subject_id,
+          deleted_document_summaries: existingDocuments.rows.map((row) => ({
+            document_id: row.id,
+            snippet: this.truncateText(row.indexed_text, 120),
+            indexed_at: new Date(row.created_at).toISOString(),
+          })),
+        },
       });
     } catch (err: any) {
       this.logger.error(`Search cleanup failed request_id=${request_id}`, err);
@@ -151,5 +167,13 @@ export class SearchConsumerService implements OnModuleInit, OnModuleDestroy {
       persistent: true,
       headers: { 'event-type': EventTypes.DELETION_STEP_FAILED, 'trace-id': event.trace_id },
     });
+  }
+
+  private truncateText(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+      return value;
+    }
+
+    return `${value.slice(0, maxLength - 3)}...`;
   }
 }

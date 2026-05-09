@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: analytics-cleanup-service
-          image: aaronshan2635088459/erasegraph-analytics-cleanup-service:latest
+          image: aaronshan2635088459/erasegraph-analytics-cleanup-service:richer-proof-20260508-1
           imagePullPolicy: Always
           ports:
             - containerPort: 3009

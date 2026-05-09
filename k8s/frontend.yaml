@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: aaronshan2635088459/erasegraph-frontend:latest
+          image: aaronshan2635088459/erasegraph-frontend:fix-api-20260508-1
           imagePullPolicy: Always
           ports:
             - containerPort: 80

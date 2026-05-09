@@ -4,9 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, QueryFailedError } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { DeletionRequest, DeletionRequestStatus } from '../database/entities/deletion-request.entity';
-import { ProofEvent } from '../database/entities/proof-event.entity';
 import { EventTypes } from '../events/types';
-import { computeProofEventHash, genesisHashForRequest } from '../proof/proof-hash.util';
+import { ProofChainService } from '../proof/proof-chain.service';
 
 const SLA_SERVICE_NAME = 'sla_monitor';
 
@@ -24,9 +23,8 @@ export class SlaMonitorService {
   constructor(
     @InjectRepository(DeletionRequest)
     private readonly deletionRequestRepository: Repository<DeletionRequest>,
-    @InjectRepository(ProofEvent)
-    private readonly proofEventRepository: Repository<ProofEvent>,
     private readonly configService: ConfigService,
+    private readonly proofChainService: ProofChainService,
   ) {}
 
   /** Every 30s so demos with SLA_THRESHOLD_MINUTES=1 do not wait a full wall-clock minute. */
@@ -114,38 +112,14 @@ export class SlaMonitorService {
       message: 'Deletion workflow exceeded configured SLA time',
     };
 
-    const last = await this.proofEventRepository
-      .createQueryBuilder('p')
-      .where('p.request_id = :rid', { rid: requestId })
-      .orderBy('p.created_at', 'DESC')
-      .addOrderBy('p.id', 'DESC')
-      .getOne();
-
-    const previous_hash =
-      last?.event_hash && last.event_hash.length > 0
-        ? last.event_hash
-        : genesisHashForRequest(requestId);
-
-    const event_hash = computeProofEventHash(
-      previous_hash,
-      requestId,
-      SLA_SERVICE_NAME,
-      EventTypes.SLA_VIOLATED,
-      payload,
-      timestampIso,
-    );
-
     try {
-      await this.proofEventRepository.save({
+      await this.proofChainService.appendEvent({
         request_id: requestId,
         service_name: SLA_SERVICE_NAME,
         event_type: EventTypes.SLA_VIOLATED,
         dedupe_key: dedupeKey,
         payload,
-        previous_hash,
-        event_hash,
-        created_at: new Date(timestampIso),
-      } as ProofEvent);
+      });
     } catch (error) {
       if (error instanceof QueryFailedError) {
         const code = (error as { driverError?: { code?: string } }).driverError?.code;
