@@ -3,8 +3,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { QueryFailedError } from 'typeorm';
 import { EventConsumerService } from './event-consumer.service';
-import { ProofEvent, ProcessedEvent } from '../database/entities';
+import { ProcessedEvent } from '../database/entities';
 import { DeletionRequestService } from '../deletion-request/deletion-request.service';
+import { ProofChainService } from '../proof/proof-chain.service';
 import { EventTypes } from './types';
 
 // ---------------------------------------------------------------------------
@@ -18,15 +19,6 @@ function makeQueryFailedError(pgCode: string): QueryFailedError {
   return err;
 }
 
-function buildQueryBuilderMock() {
-  const qb: any = {};
-  qb.where = jest.fn().mockReturnValue(qb);
-  qb.orderBy = jest.fn().mockReturnValue(qb);
-  qb.addOrderBy = jest.fn().mockReturnValue(qb);
-  qb.getOne = jest.fn().mockResolvedValue(null); // no previous hash chain entry
-  return qb;
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -34,7 +26,7 @@ function buildQueryBuilderMock() {
 describe('EventConsumerService — idempotency', () => {
   let service: EventConsumerService;
   let mockProcessedRepo: { insert: jest.Mock };
-  let mockProofRepo: { createQueryBuilder: jest.Mock; save: jest.Mock };
+  let mockProofChainService: { appendEvent: jest.Mock };
 
   beforeAll(() => {
     // Prevent onModuleInit from attempting a RabbitMQ connection during compile.
@@ -47,21 +39,18 @@ describe('EventConsumerService — idempotency', () => {
 
   beforeEach(async () => {
     mockProcessedRepo = { insert: jest.fn().mockResolvedValue({}) };
-    mockProofRepo = {
-      createQueryBuilder: jest.fn().mockReturnValue(buildQueryBuilderMock()),
-      save: jest.fn().mockResolvedValue({}),
-    };
+    mockProofChainService = { appendEvent: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EventConsumerService,
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(null) } },
-        { provide: getRepositoryToken(ProofEvent), useValue: mockProofRepo },
         { provide: getRepositoryToken(ProcessedEvent), useValue: mockProcessedRepo },
         {
           provide: DeletionRequestService,
           useValue: { updateStepStatus: jest.fn().mockResolvedValue(undefined) },
         },
+        { provide: ProofChainService, useValue: mockProofChainService },
       ],
     }).compile();
 
@@ -122,8 +111,8 @@ describe('EventConsumerService — idempotency', () => {
 
     await (service as any).handleDuplicateEventIgnored(duplicateEvent);
 
-    expect(mockProofRepo.save).toHaveBeenCalledTimes(1);
-    const saved = mockProofRepo.save.mock.calls[0][0];
+    expect(mockProofChainService.appendEvent).toHaveBeenCalledTimes(1);
+    const saved = mockProofChainService.appendEvent.mock.calls[0][0];
     expect(saved.event_type).toBe(EventTypes.DUPLICATE_EVENT_IGNORED);
     expect(saved.request_id).toBe('req-bbb');
     expect(saved.service_name).toBe('cache_cleanup');
