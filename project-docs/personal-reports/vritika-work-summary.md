@@ -56,8 +56,8 @@ For the team extension, Vritika also owns the reliability work for failed deleti
 - Circuit breaker admin endpoint: `GET /admin/circuits`
 - DLQ replay endpoint: `POST /admin/dlq/cache-cleanup/replay`
 - API gateway service with `X-Service-Token` validation
-- Failure handling design doc: `docs/failure_retry_design.md`
-- Reliability demo runbook: `docs/vritika-demo-runbook.md`
+- Failure handling design doc: `project-docs/failure_retry_design.md`
+- Reliability demo runbook: `project-docs/vritika-demo-runbook.md`
 - **Batch CSV deletion** — `POST /deletions/bulk` with per-row result reporting
 - **Bulk Upload UI** — `/bulk` page with file picker, upload button, and results table
 

@@ -12,6 +12,7 @@ import {
   DeletionNotification,
 } from '../database/entities';
 import { computeProofEventHash, genesisHashForRequest } from '../proof/proof-hash.util';
+import { ProofAttestationService } from '../proof/proof-attestation.service';
 import { 
   CreateDeletionRequestDto,
   DeletionRequestResponseDto,
@@ -21,6 +22,7 @@ import {
   ListDeletionRequestsResponseDto
 } from './dto';
 import { EventPublisherService } from '../events/event-publisher.service';
+import { EventTypes } from '../events/types';
 
 @Injectable()
 export class DeletionRequestService {
@@ -42,7 +44,8 @@ export class DeletionRequestService {
     private proofEventRepository: Repository<ProofEvent>,
     @InjectRepository(DeletionNotification)
     private deletionNotificationRepository: Repository<DeletionNotification>,
-    private eventPublisher: EventPublisherService
+    private eventPublisher: EventPublisherService,
+    private proofAttestationService: ProofAttestationService,
   ) {}
 
   async createDeletionRequest(dto: CreateDeletionRequestDto): Promise<DeletionRequestCreatedDto> {
@@ -295,6 +298,164 @@ export class DeletionRequestService {
     }
 
     return { valid: true, verified: true, request_id: id };
+  }
+
+  async getProofPublicKey() {
+    return this.proofAttestationService.getPublicKey();
+  }
+
+  async getDeletionAttestation(id: string): Promise<Record<string, unknown>> {
+    const request = await this.deletionRequestRepository.findOne({
+      where: { id },
+      relations: ['steps', 'proof_events'],
+      order: {
+        proof_events: {
+          created_at: 'ASC',
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException(`Deletion request with ID ${id} not found`);
+    }
+
+    const chainVerification = await this.verifyProofChain(id);
+    const events = request.proof_events || [];
+    const requiredServiceNames = ['primary_data', 'cache_cleanup', 'search_cleanup', 'analytics_cleanup', 'backup'];
+    const requiredStepNames = ['primary_data', 'cache', 'search_cleanup', 'analytics_cleanup', 'backup'];
+
+    const servicesSummary = Object.fromEntries(
+      requiredServiceNames.map((serviceName) => {
+        const serviceEvents = events.filter((event) => event.service_name === serviceName);
+        const succeededEvents = serviceEvents.filter(
+          (event) => event.event_type === EventTypes.DELETION_STEP_SUCCEEDED,
+        );
+        const failedEvents = serviceEvents.filter(
+          (event) => event.event_type === EventTypes.DELETION_STEP_FAILED,
+        );
+        const retryingEvents = serviceEvents.filter(
+          (event) => event.event_type === EventTypes.DELETION_STEP_RETRYING,
+        );
+
+        return [
+          serviceName,
+          {
+            events_total: serviceEvents.length,
+            succeeded_events: succeededEvents.length,
+            failed_events: failedEvents.length,
+            retrying_events: retryingEvents.length,
+            last_event_at: serviceEvents.length
+              ? serviceEvents[serviceEvents.length - 1].created_at.toISOString()
+              : null,
+            latest_cleanup_metadata:
+              succeededEvents.length > 0
+                ? succeededEvents[succeededEvents.length - 1].payload?.metadata || null
+                : null,
+          },
+        ];
+      }),
+    );
+
+    const retryEvidence = events
+      .filter((event) => event.event_type === EventTypes.DELETION_STEP_RETRYING)
+      .map((event) => ({
+        event_id: event.id,
+        service_name: event.service_name,
+        step_name: event.payload?.step_name,
+        retry_count: event.payload?.retry_count,
+        next_retry_delay_ms: event.payload?.next_retry_delay_ms,
+        error_message: event.payload?.error_message,
+        timestamp: event.created_at.toISOString(),
+      }));
+
+    const failureEvidence = events
+      .filter((event) => event.event_type === EventTypes.DELETION_STEP_FAILED)
+      .map((event) => ({
+        event_id: event.id,
+        service_name: event.service_name,
+        step_name: event.payload?.step_name,
+        error_message: event.payload?.error_message,
+        timestamp: event.created_at.toISOString(),
+      }));
+
+    const skippedEvidence = events
+      .filter((event) => event.event_type === EventTypes.CIRCUIT_OPEN_SKIP)
+      .map((event) => ({
+        event_id: event.id,
+        service_name: event.service_name,
+        metadata: event.payload?.metadata || null,
+        timestamp: event.created_at.toISOString(),
+      }));
+
+    const duplicateIgnoredEvidence = events
+      .filter((event) => event.event_type === EventTypes.DUPLICATE_EVENT_IGNORED)
+      .map((event) => ({
+        event_id: event.id,
+        service_name: event.service_name,
+        duplicate_event_id: event.payload?.duplicate_event_id,
+        timestamp: event.created_at.toISOString(),
+      }));
+
+    const requiredSteps = request.steps.filter((step) => requiredStepNames.includes(step.step_name));
+    const allRequiredStepsSucceeded = requiredSteps.every(
+      (step) => step.status === DeletionStepStatus.SUCCEEDED,
+    );
+
+    const canProveDeletedAcrossAllSystems =
+      chainVerification.verified &&
+      request.status === DeletionRequestStatus.COMPLETED &&
+      allRequiredStepsSucceeded;
+
+    const reportPayload = {
+      report_version: 'v1',
+      generated_at: new Date().toISOString(),
+      request_id: request.id,
+      subject_id: request.subject_id,
+      trace_id: request.trace_id,
+      request_status: request.status,
+      completed_at: request.completed_at ? request.completed_at.toISOString() : null,
+      total_proof_events: events.length,
+      cryptographic_verification: {
+        ...chainVerification,
+        genesis_hash: genesisHashForRequest(request.id),
+        last_event_hash: events.length ? events[events.length - 1].event_hash : null,
+      },
+      operational_evidence: {
+        required_services: requiredServiceNames,
+        step_statuses: request.steps.map((step) => ({
+          step_name: step.step_name,
+          status: step.status,
+          error_message: step.error_message,
+          updated_at: step.updated_at.toISOString(),
+        })),
+        services_summary: servicesSummary,
+        retry_evidence: retryEvidence,
+        failure_evidence: failureEvidence,
+        skipped_evidence: skippedEvidence,
+        duplicate_ignored_evidence: duplicateIgnoredEvidence,
+      },
+      answer: {
+        question:
+          'Can we cryptographically and operationally prove that user data has been deleted across all systems?',
+        can_prove_deleted_across_all_systems: canProveDeletedAcrossAllSystems,
+        rationale: canProveDeletedAcrossAllSystems
+          ? 'Hash chain is verified and all required cleanup steps completed successfully.'
+          : 'Proof chain invalid, request not completed, or at least one required cleanup step did not succeed.',
+      },
+    };
+
+    const signature = this.proofAttestationService.signPayload(reportPayload);
+    const publicKey = this.proofAttestationService.getPublicKey();
+
+    return {
+      ...reportPayload,
+      signature,
+      verification_material: {
+        key_id: publicKey.key_id,
+        algorithm: publicKey.algorithm,
+        public_key_pem: publicKey.public_key_pem,
+      },
+    };
   }
 
   async getDeletionNotification(id: string): Promise<{

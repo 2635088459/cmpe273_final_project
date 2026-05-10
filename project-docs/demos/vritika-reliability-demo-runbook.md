@@ -1,0 +1,374 @@
+# Vritika Reliability Demo Runbook
+
+## Start the stack
+
+From the project root:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d --build
+```
+
+Useful URLs:
+
+- Frontend: `http://localhost:3000`
+- Tested alternate frontend port: `http://localhost:3020`
+- Backend API: `http://localhost:3001`
+- Optional API Gateway: `http://localhost:3007`
+- RabbitMQ UI: `http://localhost:15672`
+- RabbitMQ login: `erasegraph` / `erasegraph_secret`
+- Circuit states: `http://localhost:3001/admin/circuits`
+
+Note: During local testing, port `3000` was already used by another Docker container, so the frontend was started with:
+
+```bash
+FRONTEND_PORT=3020 docker compose -f infra/docker-compose.yml up -d frontend
+```
+
+The optional API gateway runs inside its container on port `3000`. During local testing it was exposed on host port `3007` to avoid conflicts:
+
+```bash
+GATEWAY_PORT=3007 docker compose -f infra/docker-compose.yml up -d api-gateway
+```
+
+---
+
+## Batch CSV Deletion Demo
+
+### Step 1 — Prepare a test CSV
+
+Create a file `test.csv` in the project root:
+
+```
+subject_id
+bulk-user-001
+bulk-user-002
+bulk-user-003
+
+bulk-user-001
+```
+
+Row breakdown:
+- Row 1 (`bulk-user-001`) — valid, will be created
+- Row 2 (`bulk-user-002`) — valid, will be created
+- Row 3 (`bulk-user-003`) — valid, will be created
+- Row 4 (blank) — will be skipped
+- Row 5 (`bulk-user-001`) — duplicate, will be skipped
+
+### Step 2 — Upload via curl
+
+Send the CSV directly to the backend (port 3001). The API gateway does not support
+multipart form data, so use the backend address:
+
+```bash
+curl -s -X POST http://localhost:3001/deletions/bulk \
+  -F "file=@test.csv" | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+  "created": 3,
+  "skipped": 2,
+  "request_ids": ["<uuid-1>", "<uuid-2>", "<uuid-3>"],
+  "rows": [
+    { "row": 1, "subject_id": "bulk-user-001", "status": "created", "request_id": "..." },
+    { "row": 2, "subject_id": "bulk-user-002", "status": "created", "request_id": "..." },
+    { "row": 3, "subject_id": "bulk-user-003", "status": "created", "request_id": "..." },
+    { "row": 4, "subject_id": "",              "status": "skipped", "reason": "blank" },
+    { "row": 5, "subject_id": "bulk-user-001", "status": "skipped", "reason": "duplicate" }
+  ]
+}
+```
+
+### Step 3 — Confirm 3 requests appear in GET /deletions
+
+```bash
+curl -s "http://localhost:3001/deletions?search=bulk-user&limit=10" | python3 -m json.tool
+```
+
+Expected: `count: 3`, with subjects `bulk-user-001`, `bulk-user-002`, `bulk-user-003`.
+
+### Step 4 — Wait 30 seconds and confirm COMPLETED status
+
+```bash
+sleep 30
+curl -s "http://localhost:3001/deletions?search=bulk-user&limit=10" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); [print(r['subject_id'], r['status']) for r in d['items']]"
+```
+
+Expected output (all COMPLETED):
+
+```
+bulk-user-001 COMPLETED
+bulk-user-002 COMPLETED
+bulk-user-003 COMPLETED
+```
+
+### Step 5 — Frontend bulk upload UI
+
+1. Open `http://localhost:3020/bulk` (or `http://localhost:3000/bulk` if using default port).
+2. Click the **Bulk Upload** link in the navigation bar.
+3. Click the file picker — verify the file browser only shows `.csv` files (`accept=".csv"`).
+4. Select `test.csv`.
+5. Click **Upload CSV**.
+6. Confirm a per-row results table appears showing:
+   - 3 rows with status `created` and a `request_id`
+   - 1 row with status `skipped` reason `blank`
+   - 1 row with status `skipped` reason `duplicate`
+
+### Step 6 — Error cases to show
+
+Non-CSV file returns 400:
+
+```bash
+curl -s -X POST http://localhost:3001/deletions/bulk \
+  -F "file=@README.md" | python3 -m json.tool
+```
+
+Expected:
+
+```json
+{ "statusCode": 400, "message": "Only CSV files are accepted. Upload a .csv file." }
+```
+
+No file returns 400:
+
+```bash
+curl -s -X POST http://localhost:3001/deletions/bulk | python3 -m json.tool
+```
+
+Expected:
+
+```json
+{ "statusCode": 400, "message": "No file uploaded. Attach a CSV file in the \"file\" field." }
+```
+
+---
+
+## Retry then success
+
+Submit a deletion with a subject ID that starts with `fail-`, for example:
+
+```text
+fail-demo-cache
+```
+
+Expected result:
+
+- Cache cleanup fails once.
+- Backend records `DeletionStepRetrying`.
+- Dashboard shows the cache step as `RETRYING`.
+- RabbitMQ briefly shows the message in `erasegraph.retry.cache-cleanup.5s`.
+- The retry succeeds and the cache step becomes `SUCCEEDED`.
+
+## Retry then DLQ
+
+Submit a deletion with:
+
+```text
+fail-always-cache
+```
+
+Expected result:
+
+- Cache cleanup fails on each attempt.
+- Retries use 5s, 10s, and 20s queues.
+- After 3 retries, backend records `DeletionStepFailed`.
+- RabbitMQ shows the message in `erasegraph.dlq.cache-cleanup`.
+
+## Duplicate event idempotency
+
+Publish the same `DeletionRequested` payload twice with the same `event_id`.
+
+Expected result:
+
+- The first copy is claimed in the `processed_events` table.
+- The duplicate copy is acknowledged without running cleanup again.
+- Proof/audit includes `DUPLICATE_EVENT_IGNORED`.
+
+## Circuit breaker
+
+Submit enough forced cache failures to trip the threshold, for example repeated `fail-open-...` deletions.
+
+Expected result:
+
+- After 3 consecutive cache failures, Redis stores the cache circuit as `OPEN`.
+- `GET /admin/circuits` shows `cache_cleanup` as `OPEN`.
+- New first-attempt cache cleanup messages are skipped.
+- Proof/audit includes `CIRCUIT_OPEN_SKIP`.
+- The cache step becomes `SKIPPED_CIRCUIT_OPEN`.
+- After 30 seconds, `GET /admin/circuits` reports `HALF_OPEN`; a successful cache cleanup resets it to `CLOSED`.
+
+## RabbitMQ queues to show
+
+In the RabbitMQ UI, open the Queues tab and show:
+
+- `erasegraph.deletion-requests.cache-cleanup`
+- `erasegraph.retry.cache-cleanup.5s`
+- `erasegraph.retry.cache-cleanup.10s`
+- `erasegraph.retry.cache-cleanup.20s`
+- `erasegraph.dlq.cache-cleanup`
+
+## Optional: DLQ replay
+
+Replay supported DLQ messages through the backend or gateway.
+
+Backend:
+
+```bash
+curl -X POST http://localhost:3001/admin/dlq/cache-cleanup/replay
+```
+
+Gateway:
+
+```bash
+curl -X POST http://localhost:3007/admin/dlq/cache-cleanup/replay \
+  -H "X-Service-Token: erasegraph_internal_token"
+```
+
+Expected result:
+
+```json
+{"queue":"erasegraph.dlq.cache-cleanup","replayed":4}
+```
+
+The replay endpoint replays the queue's initial message count only. If replayed messages still fail, they may land back in the DLQ after the cleanup service processes them.
+
+## Optional: API gateway token validation
+
+Gateway health does not require a token:
+
+```bash
+curl http://localhost:3007/health
+```
+
+Requests without `X-Service-Token` are rejected:
+
+```bash
+curl -i "http://localhost:3007/deletions?limit=1"
+```
+
+Expected result:
+
+```text
+HTTP/1.1 401 Unauthorized
+```
+
+Requests with the token are proxied to the backend:
+
+```bash
+curl -H "X-Service-Token: erasegraph_internal_token" \
+  "http://localhost:3007/deletions?limit=1"
+```
+
+## Verified local test results
+
+These tests were run against the Docker Compose stack on `localhost`.
+
+### Step 1: Stack startup
+
+Result: Passed.
+
+- Backend: `http://localhost:3001/health`
+- Frontend: `http://localhost:3020`
+- RabbitMQ UI: `http://localhost:15672`
+- All EraseGraph services reported healthy in Docker Compose.
+
+Frontend used port `3020` because port `3000` was already occupied by `fp-grafana`.
+
+### Step 2: Retry then success
+
+Result: Passed.
+
+- Subject: `fail-demo-cache-final`
+- Request ID: `d8400b5a-05a2-42ed-a9d2-a16c345a0335`
+- Final request status: `COMPLETED`
+- Cache step final status: `SUCCEEDED`
+- Cache step final error: `null`
+- Proof included `DeletionStepRetrying`
+- Retry count: `1`
+- Retry delay: `5000ms`
+- Proof then included `DeletionStepSucceeded`
+- Retry queues and `step-results` queue drained to `0`
+
+### Step 3: Retry then DLQ
+
+Result: Passed.
+
+- Subject: `fail-always-cache-step3`
+- Request ID: `fea6f3a6-5b82-4e46-bf0d-2bc45b6ce568`
+- Final request status: `FAILED`
+- Primary data step: `SUCCEEDED`
+- Cache step: `FAILED`
+- Proof included retry attempts:
+  - `retry_count: 1`, `next_retry_delay_ms: 5000`
+  - `retry_count: 2`, `next_retry_delay_ms: 10000`
+  - `retry_count: 3`, `next_retry_delay_ms: 20000`
+- Proof included final `DeletionStepFailed`
+- Final error code: `CACHE_CLEANUP_MAX_RETRIES_EXCEEDED`
+- `erasegraph.dlq.cache-cleanup` received the failed message
+
+### Step 4: Circuit breaker
+
+Result: Passed.
+
+- Trigger subject: `fail-open-cache-step4-loop`
+- Trigger request ID: `b8481de6-7e6e-4068-8fbf-60f495454e5f`
+- Circuit opened after 3 cache failures:
+
+```json
+[{"service_name":"cache_cleanup","state":"OPEN","failure_count":3}]
+```
+
+- Skip subject: `circuit-skip-step4-loop`
+- Skip request ID: `a80fec23-9f3f-4e92-8db6-48387806fd75`
+- Final request status: `PARTIAL_COMPLETED`
+- Cache step status: `SKIPPED_CIRCUIT_OPEN`
+- Proof included `CIRCUIT_OPEN_SKIP`
+- `HALF_OPEN` display was verified:
+
+```json
+[{"service_name":"cache_cleanup","state":"HALF_OPEN","failure_count":3}]
+```
+
+- Recovery request succeeded and reset the circuit:
+
+```json
+[{"service_name":"cache_cleanup","state":"CLOSED","failure_count":0}]
+```
+
+### Step 5: Duplicate event idempotency
+
+Result: Passed.
+
+- Baseline request ID: `0e058765-3bcb-4ded-8937-80cacf45a42a`
+- Duplicate event ID: `11111111-1111-4111-8111-111111111115`
+- The same RabbitMQ event was published twice.
+- Both publishes routed successfully.
+- `processed_events` contained one row for the duplicate event ID and service `cache_cleanup`.
+- Proof included `DUPLICATE_EVENT_IGNORED`
+- Cache retry and processing queues drained to `0`
+
+### Optional Step 6: DLQ replay
+
+Result: Passed.
+
+- Endpoint: `POST /admin/dlq/cache-cleanup/replay`
+- Tested through API gateway with `X-Service-Token`
+- Initial DLQ count: `4`
+- Replay response:
+
+```json
+{"queue":"erasegraph.dlq.cache-cleanup","replayed":4}
+```
+
+- The DLQ still showed `4` messages afterward because the replayed messages were forced-failure demo messages and returned to the DLQ.
+
+### Optional Step 7: API gateway service token
+
+Result: Passed.
+
+- Gateway health endpoint worked without token.
+- Request without token returned `401 Unauthorized`.
+- Request with `X-Service-Token: erasegraph_internal_token` proxied successfully to backend and returned deletion data.
