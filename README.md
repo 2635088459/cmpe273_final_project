@@ -7,7 +7,7 @@ Group 6 Final Project for CMPE 273
 Group: Group 6
 
 Members:
-- Haoyuan Shan
+- Haoyuan Shan 015631382
 - Vritika Malhotra
 - Sakshat Patil
 - Asim Mohammed
@@ -58,6 +58,10 @@ So we need a workflow that can:
 ## Live Cloud Website
 
 - **http://34.56.39.214/**
+
+If you want to watch the full app demo, you can watch it here:
+- [Demo Folder (GitHub)](project-docs/demos/)
+- [Full App Demo Video (YouTube)](https://youtu.be/qp9-CSwcOkM)
 
 ### Cloud Demo Quick Start
 
