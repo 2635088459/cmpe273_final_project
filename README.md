@@ -15,8 +15,8 @@ Asim Mohammed Email：asim.mohammed@sjsu.edu
 
 If you need to view the final report or the presentation slides for this project, please check the `project-docs/final-submission` folder:
 
-- [Final Report (PDF)](project-docs/final-submission/final-report-ieee.pdf)
-- [Presentation Slides (PDF)](project-docs/final-submission/final-presentation.pdf)
+- [Final Report (PDF)](project-docs/final-submission/CMPE273_final_report.pdf)
+- [Presentation Slides (PDF)](project-docs/final-submission/erasegraph-slides-v3.pptx.pdf)
 ## What Is This App
 
 EraseGraph is a distributed app for verifiable deletion propagation.
