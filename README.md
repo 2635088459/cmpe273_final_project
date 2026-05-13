@@ -8,10 +8,10 @@ Group: Group 6
 
 Members:
 Haoyuan Shan Email：haoyuan.shan@sjsu.edu ID: 015631382
-Vritika Malhotra Email：vritika.malhotra@sjsu.edu
+Vritika Malhotra Email：vritika.malhotra@sjsu.edu 
 Sakshat Patil Email：sakshatnandkumar.patil@sjsu.edu
-Asim Mohammed Email：asim.mohammed@sjsu.edu
-# 📄 Final Report & Presentation
+Asim Mohammed Email：asim.mohammed@sjsu.edu 
+# Final Report & Presentation
 
 If you need to view the final report or the presentation slides for this project, please check the `project-docs/final-submission` folder:
 
