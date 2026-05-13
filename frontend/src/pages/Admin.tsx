@@ -163,6 +163,36 @@ function Admin() {
               <button className="button-primary" onClick={loadAll}>
                 Refresh
               </button>
+              <a
+                href="http://34.58.58.190/"
+                target="_blank"
+                rel="noreferrer"
+                className="button-secondary"
+              >
+                Open Grafana
+              </a>
+              <a
+                href="http://34.63.108.15/"
+                target="_blank"
+                rel="noreferrer"
+                className="button-secondary"
+              >
+                Open RabbitMQ UI
+              </a>
+              <a
+                href="http://35.222.66.229/"
+                target="_blank"
+                rel="noreferrer"
+                className="button-secondary"
+              >
+                Open Jaeger UI
+              </a>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", alignSelf: "center" }}>
+                Grafana login — username: <code>admin</code> · password: <code>erasegraph2026</code>
+              </span>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", alignSelf: "center" }}>
+                RabbitMQ login — username: <code>erasegraph</code> · password: <code>Wj5dF3hY8cPnAt6Z</code>
+              </span>
               {lastRefreshed ? (
                 <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", alignSelf: "center" }}>
                   Last refreshed {lastRefreshed.toLocaleTimeString()}

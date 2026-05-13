@@ -75,6 +75,7 @@ metadata:
   name: rabbitmq
   namespace: erasegraph
 spec:
+  type: LoadBalancer
   selector:
     app: rabbitmq
   ports:
@@ -82,5 +83,5 @@ spec:
       port: 5672
       targetPort: 5672
     - name: management
-      port: 15672
+      port: 80
       targetPort: 15672

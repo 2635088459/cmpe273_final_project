@@ -44,11 +44,12 @@ metadata:
   name: jaeger
   namespace: erasegraph
 spec:
+  type: LoadBalancer
   selector:
     app: jaeger
   ports:
     - name: ui
-      port: 16686
+      port: 80
       targetPort: 16686
     - name: otlp-grpc
       port: 4317

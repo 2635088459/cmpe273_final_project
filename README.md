@@ -7,11 +7,16 @@ Group 6 Final Project for CMPE 273
 Group: Group 6
 
 Members:
-- Haoyuan Shan 015631382
-- Vritika Malhotra
-- Sakshat Patil
-- Asim Mohammed
+Haoyuan Shan Email：haoyuan.shan@sjsu.edu ID: 015631382
+Vritika Malhotra Email：vritika.malhotra@sjsu.edu
+Sakshat Patil Email：sakshatnandkumar.patil@sjsu.edu
+Asim Mohammed Email：asim.mohammed@sjsu.edu
+# 📄 Final Report & Presentation
 
+If you need to view the final report or the presentation slides for this project, please check the `project-docs/final-submission` folder:
+
+- [Final Report (IEEE PDF/LaTeX)](project-docs/final-submission/final-report-ieee.tex)
+- [Presentation Slides (PPT)](project-docs/final-submission/final-presentation.pptx)
 ## What Is This App
 
 EraseGraph is a distributed app for verifiable deletion propagation.
