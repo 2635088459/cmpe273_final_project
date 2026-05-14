@@ -1,3 +1,21 @@
+/**
+ * Admin operations page.
+ *
+ * Three independent panels rendered side by side:
+ *   1. Service health — live status of every downstream microservice from
+ *      `GET /health/all`. Up = green chip, Down = red chip with the last
+ *      `lastSeenUp` timestamp and any reported error.
+ *   2. Circuit breaker states — current `CLOSED`/`HALF_OPEN`/`OPEN` per
+ *      cleanup service from `GET /admin/circuits`. Open breakers also show
+ *      the `open_until` cooldown deadline.
+ *   3. SLA violations — deletion requests currently in `SLA_VIOLATED`
+ *      status from `GET /admin/sla-violations`. Sourced from the
+ *      backend `SlaMonitorService` 60-second scanner.
+ *
+ * The three sections load in parallel via `Promise.allSettled` so a
+ * failure in one endpoint doesn't block the others. Each section has
+ * its own loading, empty, and error rendering path.
+ */
 import { useEffect, useState } from "react";
 import {
   CircuitSnapshot,
@@ -9,6 +27,7 @@ import {
   getSlaViolations,
 } from "../services/api";
 
+/** Formats an ISO timestamp into a short, locale-aware date+time string. */
 function formatDate(value?: string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en", {
@@ -20,6 +39,11 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+/**
+ * Converts a snake_case or kebab-case service name (e.g.
+ * `cache_cleanup_service`) into Title Case (`Cache Cleanup Service`)
+ * for display in the admin badges.
+ */
 function formatServiceName(name: string) {
   return name
     .replace(/-/g, " ")
@@ -27,6 +51,12 @@ function formatServiceName(name: string) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * One row in the Service Health panel. Renders the service name, a
+ * UP/DOWN status chip, and any contextual metadata (last-checked
+ * timestamp for UP services, last-seen-up timestamp and error message
+ * for DOWN services).
+ */
 function ServiceHealthBadge({ name, info }: { name: string; info: ServiceStatus }) {
   const isUp = info.status === "UP";
   return (
@@ -50,6 +80,13 @@ function ServiceHealthBadge({ name, info }: { name: string; info: ServiceStatus 
   );
 }
 
+/**
+ * One row in the Circuit Breaker panel. CSS chip class is picked from the
+ * breaker state — CLOSED maps to the "completed" green chip, OPEN maps
+ * to the "failed" red chip, HALF_OPEN maps to the "retrying" yellow
+ * chip. The `open until` deadline is only shown for breakers whose
+ * cooldown window is in the future.
+ */
 function CircuitRow({ circuit }: { circuit: CircuitSnapshot }) {
   const stateClass =
     circuit.state === "CLOSED"
@@ -77,6 +114,13 @@ function CircuitRow({ circuit }: { circuit: CircuitSnapshot }) {
   );
 }
 
+/**
+ * One row in the SLA Violations panel. Surfaced from the backend
+ * `SlaMonitorService` scanner; the request ID and subject ID identify
+ * which deletion has been stuck, and `duration_minutes` is the
+ * live-computed time since the request was created (recomputed each
+ * call to `GET /admin/sla-violations`).
+ */
 function SlaViolationRow({ v }: { v: SlaViolation }) {
   return (
     <div className="admin-service-row">
@@ -104,6 +148,12 @@ function Admin() {
   const [isLoadingSla, setIsLoadingSla] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
+  /**
+   * Loads all three admin data sources in parallel. We use
+   * `Promise.allSettled` (not `Promise.all`) so a failure in one
+   * endpoint does not poison the other two — each section renders its
+   * own success / error path independently.
+   */
   async function loadAll() {
     setIsLoadingHealth(true);
     setIsLoadingCircuits(true);
