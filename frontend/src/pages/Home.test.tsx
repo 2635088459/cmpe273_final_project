@@ -74,7 +74,7 @@ describe("Home", () => {
       completed_at: "2026-05-09T18:10:00.000Z",
       total_proof_events: 0,
       cryptographic_verification: { valid: true, verified: true, genesis_hash: "g", last_event_hash: "l" },
-      operational_evidence: { required_services: 5, step_statuses: {}, services_summary: {} },
+      operational_evidence: { required_services: [], step_statuses: [], services_summary: {} },
       answer: {
         question: "q",
         can_prove_deleted_across_all_systems: true,

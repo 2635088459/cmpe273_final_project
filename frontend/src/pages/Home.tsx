@@ -771,10 +771,10 @@ function Home() {
                           ) : null}
                           <h6>Services Involved:</h6>
                           <ul>
-                            {Object.entries(attestation.operational_evidence.step_statuses).map(([service, status]) => (
-                              <li key={service}>
-                                <span className={`status-badge ${String(status).toLowerCase()}`}>{String(status)}</span>
-                                <strong>{formatLabel(service)}</strong>
+                            {attestation.operational_evidence.step_statuses.map((step) => (
+                              <li key={step.step_name}>
+                                <span className={`status-badge ${step.status.toLowerCase()}`}>{step.status}</span>
+                                <strong>{formatLabel(step.step_name)}</strong>
                               </li>
                             ))}
                           </ul>

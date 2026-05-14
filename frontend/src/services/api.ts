@@ -126,8 +126,13 @@ export type DeletionAttestation = {
     last_event_hash: string;
   };
   operational_evidence: {
-    required_services: number;
-    step_statuses: Record<string, string>;
+    required_services: string[];
+    step_statuses: Array<{
+      step_name: string;
+      status: string;
+      error_message?: string | null;
+      updated_at?: string;
+    }>;
     services_summary: Record<string, any>;
     retry_evidence?: any[];
     failure_evidence?: any[];
