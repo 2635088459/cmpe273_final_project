@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: cache-cleanup-service
-          image: aaronshan2635088459/erasegraph-cache-cleanup-service:richer-proof-20260508-1
+          image: aaronshan2635088459/erasegraph-cache-cleanup-service:delete-fix-20260513
           imagePullPolicy: Always
           ports:
             - containerPort: 3003

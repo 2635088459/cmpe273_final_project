@@ -14,6 +14,7 @@ import {
 // Routing keys that match the RabbitMQ bindings in definitions.json
 const ROUTING_KEY_STEP_SUCCEEDED = 'step.succeeded';
 const ROUTING_KEY_STEP_FAILED = 'step.failed';
+const ROUTING_KEY_DELETION_REQUESTED = 'deletion.requested';
 const EXCHANGE_NAME = 'erasegraph.events';
 const CONSUME_QUEUE = 'erasegraph.deletion-requests.primary-data';
 const SERVICE_NAME = 'primary_data';
@@ -50,7 +51,13 @@ export class DeletionConsumerService implements OnModuleInit, OnModuleDestroy {
     this.connection = await amqp.connect(url);
 
     this.consumerChannel = await this.connection.createChannel();
+    await this.consumerChannel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
     await this.consumerChannel.assertQueue(CONSUME_QUEUE, { durable: true });
+    await this.consumerChannel.bindQueue(
+      CONSUME_QUEUE,
+      EXCHANGE_NAME,
+      ROUTING_KEY_DELETION_REQUESTED,
+    );
     await this.consumerChannel.prefetch(1);
 
     this.publisherChannel = await this.connection.createChannel();

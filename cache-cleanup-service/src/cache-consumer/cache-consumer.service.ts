@@ -16,6 +16,7 @@ const EXCHANGE_NAME = 'erasegraph.events';
 const RETRY_EXCHANGE_NAME = 'erasegraph.retry';
 const DLQ_EXCHANGE_NAME = 'erasegraph.dlq';
 const CONSUME_QUEUE = 'erasegraph.deletion-requests.cache-cleanup';
+const ROUTING_KEY_DELETION_REQUESTED = 'deletion.requested';
 const ROUTING_KEY_STEP_SUCCEEDED = 'step.succeeded';
 const ROUTING_KEY_STEP_FAILED = 'step.failed';
 const ROUTING_KEY_STEP_RETRYING = 'step.retrying';
@@ -99,6 +100,11 @@ export class CacheConsumerService implements OnModuleInit, OnModuleDestroy {
     await this.consumerChannel.assertExchange(DLQ_EXCHANGE_NAME, 'topic', { durable: true });
     await this.assertRetryAndDlqTopology(this.consumerChannel);
     await this.consumerChannel.assertQueue(CONSUME_QUEUE, { durable: true });
+    await this.consumerChannel.bindQueue(
+      CONSUME_QUEUE,
+      EXCHANGE_NAME,
+      ROUTING_KEY_DELETION_REQUESTED,
+    );
     await this.consumerChannel.prefetch(1);
 
     this.publisherChannel = await this.connection.createChannel();

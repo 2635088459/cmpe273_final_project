@@ -70,6 +70,20 @@ data:
           "arguments": {}
         },
         {
+          "name": "erasegraph.deletion-requests.search-cleanup",
+          "vhost": "/",
+          "durable": true,
+          "auto_delete": false,
+          "arguments": {}
+        },
+        {
+          "name": "erasegraph.deletion-requests.analytics-cleanup",
+          "vhost": "/",
+          "durable": true,
+          "auto_delete": false,
+          "arguments": {}
+        },
+        {
           "name": "erasegraph.deletion-requests.backup",
           "vhost": "/",
           "durable": true,
@@ -85,6 +99,13 @@ data:
         },
         {
           "name": "erasegraph.proof-events",
+          "vhost": "/",
+          "durable": true,
+          "auto_delete": false,
+          "arguments": {}
+        },
+        {
+          "name": "erasegraph.deletion-notifications",
           "vhost": "/",
           "durable": true,
           "auto_delete": false,
@@ -151,6 +172,22 @@ data:
         {
           "source": "erasegraph.events",
           "vhost": "/",
+          "destination": "erasegraph.deletion-requests.search-cleanup",
+          "destination_type": "queue",
+          "routing_key": "deletion.requested",
+          "arguments": {}
+        },
+        {
+          "source": "erasegraph.events",
+          "vhost": "/",
+          "destination": "erasegraph.deletion-requests.analytics-cleanup",
+          "destination_type": "queue",
+          "routing_key": "deletion.requested",
+          "arguments": {}
+        },
+        {
+          "source": "erasegraph.events",
+          "vhost": "/",
           "destination": "erasegraph.deletion-requests.backup",
           "destination_type": "queue",
           "routing_key": "deletion.requested",
@@ -194,6 +231,22 @@ data:
           "destination": "erasegraph.proof-events",
           "destination_type": "queue",
           "routing_key": "step.failed",
+          "arguments": {}
+        },
+        {
+          "source": "erasegraph.events",
+          "vhost": "/",
+          "destination": "erasegraph.deletion-notifications",
+          "destination_type": "queue",
+          "routing_key": "deletion.completed",
+          "arguments": {}
+        },
+        {
+          "source": "erasegraph.events",
+          "vhost": "/",
+          "destination": "erasegraph.deletion-notifications",
+          "destination_type": "queue",
+          "routing_key": "deletion.failed",
           "arguments": {}
         },
         {

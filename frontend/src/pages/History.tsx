@@ -1,7 +1,26 @@
+/**
+ * Deletion request history page.
+ *
+ * Tabular listing of the 50 most-recent deletion requests with two
+ * server-side filter controls:
+ *  - Free-text search across `subject_id` (passed as `?search=`)
+ *  - Status dropdown (passed as `?status=`)
+ *
+ * Both filters trigger a refetch on every change (debouncing is the
+ * backend's responsibility — list endpoint is cheap). The View action
+ * navigates back to the main dashboard with the request preselected
+ * via `location.state`, so the compliance team can drill into a
+ * specific request's proof timeline without manually re-typing the ID.
+ */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DeletionRequest, listDeletionRequests } from "../services/api";
 
+/**
+ * Set of statuses surfaced in the filter dropdown. The empty string is
+ * "all statuses" — when selected, the `status` query parameter is
+ * omitted from the API call entirely.
+ */
 const statusOptions = [
   "",
   "PENDING",
@@ -12,6 +31,7 @@ const statusOptions = [
   "RETRYING",
 ];
 
+/** Formats an ISO timestamp as a short locale-aware date+time. */
 function formatDate(value?: string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en", {
@@ -22,6 +42,11 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+/**
+ * Normalizes an enum-style status value (`PARTIAL_COMPLETED`) into a
+ * human-readable label (`Partial Completed`) for chip text and
+ * dropdown options. Pure formatting, no semantic changes.
+ */
 function formatLabel(value: string) {
   return value
     .toLowerCase()
@@ -30,6 +55,12 @@ function formatLabel(value: string) {
     .join(" ");
 }
 
+/**
+ * Returns the "done / total" progress string for a deletion request.
+ * `SUCCEEDED`, `FAILED`, and `SKIPPED_CIRCUIT_OPEN` are all counted as
+ * "done" — they're all terminal step states for the purpose of
+ * progress reporting (the request has stopped waiting on them).
+ */
 function stepsDone(request: DeletionRequest) {
   const done = request.steps.filter((s) =>
     ["SUCCEEDED", "FAILED", "SKIPPED_CIRCUIT_OPEN"].includes(s.status.toUpperCase())

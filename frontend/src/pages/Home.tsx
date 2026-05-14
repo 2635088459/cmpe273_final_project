@@ -63,6 +63,34 @@ function normalizeRequiredServices(required: unknown): { count: number; list: st
   return { count: 0, list: [] };
 }
 
+function normalizeStepStatuses(
+  value: unknown,
+): Array<{ step_name: string; status: string; error_message?: string | null; updated_at?: string }> {
+  if (Array.isArray(value)) {
+    return value
+      .filter((step): step is Record<string, unknown> => !!step && typeof step === "object")
+      .map((step) => ({
+        step_name: String(step.step_name || "").trim(),
+        status: String(step.status || "").trim(),
+        error_message:
+          typeof step.error_message === "string" || step.error_message === null
+            ? (step.error_message as string | null)
+            : undefined,
+        updated_at: typeof step.updated_at === "string" ? step.updated_at : undefined,
+      }))
+      .filter((step) => step.step_name && step.status);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).map(([step_name, status]) => ({
+      step_name,
+      status: String(status || "").trim(),
+    }));
+  }
+
+  return [];
+}
+
 function buildProofExportFileName(request: DeletionRequest | null, extension: string) {
   const suffix = request?.subject_id ? `-${request.subject_id}` : "";
   return `erasegraph-proof-${request?.id || "request"}${suffix}.${extension}`;
@@ -695,9 +723,10 @@ function Home() {
                         const required = normalizeRequiredServices(
                           attestation.operational_evidence.required_services
                         );
-                        const statusServiceCount = Object.keys(
-                          attestation.operational_evidence.step_statuses || {}
-                        ).length;
+                        const stepStatuses = normalizeStepStatuses(
+                          attestation.operational_evidence.step_statuses
+                        );
+                        const statusServiceCount = stepStatuses.length;
 
                         return (
                           <>
@@ -771,10 +800,10 @@ function Home() {
                           ) : null}
                           <h6>Services Involved:</h6>
                           <ul>
-                            {Object.entries(attestation.operational_evidence.step_statuses).map(([service, status]) => (
-                              <li key={service}>
-                                <span className={`status-badge ${String(status).toLowerCase()}`}>{String(status)}</span>
-                                <strong>{formatLabel(service)}</strong>
+                            {stepStatuses.map((step) => (
+                              <li key={step.step_name}>
+                                <span className={`status-badge ${step.status.toLowerCase()}`}>{step.status}</span>
+                                <strong>{formatLabel(step.step_name)}</strong>
                               </li>
                             ))}
                           </ul>

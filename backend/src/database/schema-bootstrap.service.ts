@@ -18,6 +18,23 @@ export class SchemaBootstrapService implements OnModuleInit {
       WHERE dedupe_key IS NULL
     `);
     await this.dataSource.query(`
+      DELETE FROM proof_events
+      WHERE ctid IN (
+        SELECT ctid
+        FROM (
+          SELECT
+            ctid,
+            ROW_NUMBER() OVER (
+              PARTITION BY dedupe_key
+              ORDER BY created_at ASC, id ASC
+            ) AS duplicate_rank
+          FROM proof_events
+          WHERE dedupe_key IS NOT NULL
+        ) ranked
+        WHERE duplicate_rank > 1
+      )
+    `);
+    await this.dataSource.query(`
       ALTER TABLE proof_events
       ALTER COLUMN dedupe_key SET NOT NULL
     `);

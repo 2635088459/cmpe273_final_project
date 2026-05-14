@@ -10,6 +10,7 @@ import {
 
 const EXCHANGE_NAME = 'erasegraph.events';
 const CONSUME_QUEUE = 'erasegraph.deletion-requests.backup';
+const ROUTING_KEY_DELETION_REQUESTED = 'deletion.requested';
 const ROUTING_KEY_STEP_SUCCEEDED = 'step.succeeded';
 const ROUTING_KEY_STEP_FAILED = 'step.failed';
 const SERVICE_NAME = 'backup';
@@ -53,7 +54,9 @@ export class BackupConsumerService implements OnModuleInit, OnModuleDestroy {
     this.connection = await amqp.connect(url);
 
     this.consumerChannel = await this.connection.createChannel();
+    await this.consumerChannel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
     await this.consumerChannel.assertQueue(CONSUME_QUEUE, { durable: true });
+    await this.consumerChannel.bindQueue(CONSUME_QUEUE, EXCHANGE_NAME, ROUTING_KEY_DELETION_REQUESTED);
     await this.consumerChannel.prefetch(1);
 
     this.publisherChannel = await this.connection.createChannel();
