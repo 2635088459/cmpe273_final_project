@@ -1,3 +1,5 @@
+export {};
+
 jest.mock("./reportWebVitals", () => ({
   __esModule: true,
   default: jest.fn(),
