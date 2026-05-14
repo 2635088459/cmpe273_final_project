@@ -1,9 +1,4 @@
 # EraseGraph Team GitHub Contributions
-
-This page is a simple summary of each team member's GitHub contribution for our final submission. We used the GitHub contributor screenshot from May 13, 2026 together with the code, docs, and project work split to organize this section.
-
-The commit count gives a rough idea of activity, but we mainly want to show what each person actually worked on in the project.
-
 ## GitHub Contributor Snapshot
 
 ![GitHub contribution snapshot](./github-contribution-screenshot.png)
@@ -59,6 +54,3 @@ Asim mainly worked on extending the distributed workflow with more services and 
 - Helped define consistency-related behavior such as delayed completion, multi-step aggregation, and request state handling.
 - Added or supported tests and documentation related to consistency and SSE/backend behavior.
 
-## Closing Note
-
-Overall, the GitHub contribution history shows that the project work was split across different areas in a pretty balanced way. Haoyuan focused more on backend integration and deployment, Vritika focused more on reliability and recovery features, Sakshat focused more on frontend experience and admin visibility, and Asim focused more on service expansion and consistency-related backend behavior.
