@@ -145,6 +145,35 @@ npm start
 For deeper setup steps and troubleshooting:
 - [project-docs/design-docs/kubernetes_deployment_guide.md](project-docs/design-docs/kubernetes_deployment_guide.md)
 
+### 6. Troubleshooting
+
+**Port 3010 already in use when starting the stack**
+
+`notification-service` binds host port 3010. If another local service
+(common: a Next.js dev server) holds it, `docker compose up` will fail
+with `bind: address already in use`. Either free the port, or override
+just the host mapping for this run:
+
+```bash
+NOTIFICATION_SERVICE_PORT=3011 docker compose up -d
+```
+
+**Frontend Docker build fails with TS1208 on `index.test.ts`**
+
+`react-scripts build` runs TypeScript under `--isolatedModules`, which
+treats files without any `import`/`export` as global scripts. If you
+see `TS1208: 'index.test.ts' cannot be compiled under '--isolatedModules'`,
+add an empty `export {};` at the top of the offending file. This is
+already applied on `main`; the note is here for the next time someone
+adds a top-level-only test file.
+
+**Containers come up but `frontend` / `api-gateway` stay restarting**
+
+These two depend on `backend` being healthy. Check
+`docker compose logs backend` — if Postgres or RabbitMQ are slow to
+become healthy, `backend` retries and the dependents start late. Wait
+~30 seconds, then re-check `docker compose ps`.
+
 ## Design Philosophy
 
 Main design ideas:
