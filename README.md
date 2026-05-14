@@ -7,10 +7,11 @@ Group 6 Final Project for CMPE 273
 Group: Group 6
 
 Members:
-Haoyuan Shan Email：haoyuan.shan@sjsu.edu ID: 015631382
-Vritika Malhotra Email：vritika.malhotra@sjsu.edu 
-Sakshat Patil Email：sakshatnandkumar.patil@sjsu.edu
-Asim Mohammed Email：asim.mohammed@sjsu.edu 
+- Haoyuan Shan Email：haoyuan.shan@sjsu.edu ID: 015631382 Github user name: Haoyuan Shan / 2635088459
+
+- Vritika Malhotra Email：vritika.malhotra@sjsu.edu 
+- Sakshat Patil Email：sakshatnandkumar.patil@sjsu.edu
+- Asim Mohammed Email：asim.mohammed@sjsu.edu 
 # Final Report & Presentation
 
 If you need to view the final report or the presentation slides for this project, please check the `project-docs/final-submission` folder:
