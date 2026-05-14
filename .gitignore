@@ -118,3 +118,6 @@ primary-data-service/.env
 */node_modules/
 */dist/
 */.env
+
+# Reference / sample artifacts (not project deliverables)
+sample_project_report*.pdf
