@@ -18,6 +18,11 @@ If you need to view the final report or the presentation slides for this project
 
 - [Final Report (PDF)](project-docs/final-submission/CMPE273_final_report.pdf)
 - [Presentation Slides (PDF)](project-docs/final-submission/erasegraph-slides-v3.pptx.pdf)
+
+If you want to see the detailed team contribution report, please check here:
+- [Team Contribution Report](project-docs/final-submission/github-contributions.md)
+
+
 ## What Is This App
 
 EraseGraph is a distributed app for verifiable deletion propagation.
