@@ -5,6 +5,7 @@ import BulkUpload from "./pages/BulkUpload";
 import Users from "./pages/Users";
 import History from "./pages/History";
 import Admin from "./pages/Admin";
+import DataDiscovery from "./pages/DataDiscovery";
 import Navbar from "./components/Navbar";
 import "./App.css";
 
@@ -21,6 +22,7 @@ function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/history" element={<History />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/discover" element={<DataDiscovery />} />
           </Routes>
         </div>
       </div>

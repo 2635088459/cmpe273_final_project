@@ -38,6 +38,17 @@ export class EventPublisherService {
       // Ensure the exchange exists
       await this.channel.assertExchange(this.EXCHANGE_NAME, 'topic', { durable: true });
 
+      // Bind worker queues so bindings survive RabbitMQ restarts
+      const workerQueues = [
+        'erasegraph.deletion-requests.primary-data',
+        'erasegraph.deletion-requests.cache-cleanup',
+        'erasegraph.deletion-requests.backup',
+      ];
+      for (const q of workerQueues) {
+        await this.channel.assertQueue(q, { durable: true });
+        await this.channel.bindQueue(q, this.EXCHANGE_NAME, 'deletion.requested');
+      }
+
       this.connection.on('error', (err: any) => {
         this.logger.error('RabbitMQ connection error, reconnecting...', err.message);
         this.scheduleReconnect();

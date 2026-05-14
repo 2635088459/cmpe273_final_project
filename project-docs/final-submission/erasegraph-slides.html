@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EraseGraph — CMPE 273 Final Presentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ── Design tokens (matches frontend index.css) ── */
+:root {
+  --bg-top: #08111f;
+  --bg-bottom: #040813;
+  --surface-card: rgba(11,18,33,0.92);
+  --surface-elevated: rgba(15,24,42,0.97);
+  --border-soft: rgba(149,177,229,0.14);
+  --border-mid: rgba(149,177,229,0.22);
+  --text-primary: #eef4ff;
+  --text-secondary: #9eafcf;
+  --text-muted: #7180a0;
+  --accent-orange: #ff7a45;
+  --accent-blue: #4e8dff;
+  --accent-green: #7cf0bc;
+  --accent-purple: #c084fc;
+  --shadow-soft: 0 28px 64px rgba(0,0,0,0.38);
+  --shadow-strong: 0 34px 88px rgba(0,0,0,0.52);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:"Inter","Segoe UI",sans-serif;background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom));color:var(--text-primary);-webkit-font-smoothing:antialiased;overflow:hidden;}
+h1,h2,h3,h4{font-family:"Space Grotesk","Inter",sans-serif;}
+code{font-family:"IBM Plex Mono",monospace;}
+
+/* ── Slide container ── */
+#deck{position:fixed;inset:0;display:flex;flex-direction:column;}
+.slide{display:none;flex:1;padding:40px 52px 32px;position:relative;overflow:hidden;}
+.slide.active{display:flex;flex-direction:column;}
+
+/* Ambient glow overlay on each slide */
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(circle at 8% 12%,rgba(78,141,255,0.13),transparent 32%),
+    radial-gradient(circle at 92% 88%,rgba(255,122,69,0.10),transparent 30%);
+}
+
+/* ── Nav bar ── */
+#nav{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;z-index:100;
+  padding:12px 20px;border-radius:999px;
+  background:rgba(10,16,30,0.88);border:1px solid var(--border-soft);
+  backdrop-filter:blur(18px);box-shadow:var(--shadow-soft);}
+#nav button{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;
+  border:1px solid var(--border-soft);background:rgba(255,255,255,0.05);color:var(--text-primary);
+  cursor:pointer;font-size:1rem;transition:all 160ms ease;}
+#nav button:hover{background:rgba(78,141,255,0.18);border-color:var(--accent-blue);}
+#slide-counter{font-size:0.82rem;color:var(--text-muted);font-family:"IBM Plex Mono",monospace;min-width:52px;text-align:center;}
+#progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent-orange),var(--accent-blue));transition:width 300ms ease;z-index:200;}
+
+/* ── Common layout helpers ── */
+.slide-label{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;
+  background:rgba(78,141,255,0.1);border:1px solid rgba(78,141,255,0.2);
+  color:#b0c8ff;font-size:0.75rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:14px;width:fit-content;}
+.slide-title{font-size:clamp(1.9rem,3.2vw,2.8rem);line-height:1.08;letter-spacing:-0.04em;margin-bottom:10px;}
+.slide-sub{color:var(--text-secondary);font-size:1rem;line-height:1.6;max-width:72ch;}
+
+.cols-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;flex:1;align-items:start;margin-top:20px;}
+.cols-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;flex:1;align-items:start;margin-top:20px;}
+.col-wide-left{display:grid;grid-template-columns:1.25fr 0.75fr;gap:24px;flex:1;align-items:start;margin-top:20px;}
+
+.card{padding:20px 22px;border-radius:20px;border:1px solid var(--border-soft);
+  background:linear-gradient(180deg,rgba(13,21,37,0.96),rgba(8,14,26,0.92));}
+.card-accent-orange{border-color:rgba(255,122,69,0.22);background:linear-gradient(135deg,rgba(255,122,69,0.07),rgba(8,14,26,0.92));}
+.card-accent-blue{border-color:rgba(78,141,255,0.22);background:linear-gradient(135deg,rgba(78,141,255,0.07),rgba(8,14,26,0.92));}
+.card-accent-green{border-color:rgba(124,240,188,0.22);background:linear-gradient(135deg,rgba(124,240,188,0.06),rgba(8,14,26,0.92));}
+.card-accent-purple{border-color:rgba(192,132,252,0.22);background:linear-gradient(135deg,rgba(192,132,252,0.06),rgba(8,14,26,0.92));}
+
+.card-icon{font-size:1.6rem;margin-bottom:10px;}
+.card h3{font-size:1rem;font-family:"Space Grotesk",sans-serif;margin-bottom:6px;}
+.card p,.card li{font-size:0.87rem;color:var(--text-secondary);line-height:1.6;}
+.card ul{padding-left:16px;display:grid;gap:4px;}
+.card-label{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);font-weight:700;margin-bottom:4px;}
+
+.pill{display:inline-flex;align-items:center;min-height:26px;padding:0 10px;border-radius:999px;
+  font-size:0.75rem;font-weight:700;border:1px solid var(--border-soft);background:rgba(255,255,255,0.04);color:#c1d2f3;}
+.pill-orange{background:rgba(255,122,69,0.14);border-color:rgba(255,122,69,0.28);color:#ffb085;}
+.pill-blue{background:rgba(78,141,255,0.14);border-color:rgba(78,141,255,0.28);color:#85b3ff;}
+.pill-green{background:rgba(124,240,188,0.14);border-color:rgba(124,240,188,0.28);color:#7cf0bc;}
+.pill-purple{background:rgba(192,132,252,0.14);border-color:rgba(192,132,252,0.28);color:#d0b0ff;}
+
+/* ── Slide 1: Title ── */
+.title-slide{justify-content:center;align-items:flex-start;}
+.title-eyebrow{display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:999px;
+  background:rgba(255,122,69,0.1);border:1px solid rgba(255,122,69,0.22);
+  color:#ffb085;font-size:0.8rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:20px;}
+.title-hero{font-size:clamp(3rem,6vw,5.2rem);line-height:0.95;letter-spacing:-0.055em;margin-bottom:24px;}
+.title-hero span{background:linear-gradient(135deg,var(--accent-orange),var(--accent-blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.title-tagline{font-size:1.15rem;color:var(--text-secondary);line-height:1.6;max-width:58ch;margin-bottom:32px;}
+.team-chips{display:flex;flex-wrap:wrap;gap:10px;}
+.team-chip{padding:8px 16px;border-radius:12px;border:1px solid var(--border-mid);
+  background:rgba(15,24,42,0.7);font-size:0.88rem;font-weight:600;}
+.title-course-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;
+  background:rgba(78,141,255,0.08);border:1px solid rgba(78,141,255,0.18);
+  color:#85b3ff;font-size:0.78rem;font-weight:700;letter-spacing:0.05em;margin-bottom:10px;}
+.title-side{position:absolute;right:52px;top:50%;transform:translateY(-50%);
+  display:grid;gap:12px;width:260px;}
+.mini-arch-box{padding:14px 16px;border-radius:16px;border:1px solid var(--border-soft);
+  background:rgba(10,16,30,0.7);font-size:0.8rem;font-weight:600;color:var(--text-secondary);
+  display:flex;align-items:center;gap:10px;}
+.mini-arch-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.dot-orange{background:var(--accent-orange);}
+.dot-blue{background:var(--accent-blue);}
+.dot-green{background:var(--accent-green);}
+.dot-purple{background:var(--accent-purple);}
+.mini-arch-connector{width:2px;height:18px;background:linear-gradient(180deg,var(--accent-orange),var(--accent-blue));margin:0 auto;}
+
+/* ── Arch diagram ── */
+.arch-diagram{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;margin-top:16px;}
+.arch-layer{display:flex;justify-content:center;gap:16px;width:100%;}
+.arch-box{padding:10px 18px;border-radius:14px;border:1px solid var(--border-soft);
+  background:rgba(10,16,30,0.8);font-size:0.82rem;font-weight:700;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:4px;min-width:100px;}
+.arch-box .arch-icon{font-size:1.2rem;}
+.arch-box .arch-label{font-size:0.72rem;color:var(--text-muted);font-weight:600;}
+.arch-box-orange{border-color:rgba(255,122,69,0.32);background:linear-gradient(135deg,rgba(255,122,69,0.1),rgba(10,16,30,0.8));}
+.arch-box-blue{border-color:rgba(78,141,255,0.32);background:linear-gradient(135deg,rgba(78,141,255,0.1),rgba(10,16,30,0.8));}
+.arch-box-green{border-color:rgba(124,240,188,0.32);background:linear-gradient(135deg,rgba(124,240,188,0.08),rgba(10,16,30,0.8));}
+.arch-box-purple{border-color:rgba(192,132,252,0.32);background:linear-gradient(135deg,rgba(192,132,252,0.08),rgba(10,16,30,0.8));}
+.arch-box-amber{border-color:rgba(251,191,36,0.32);background:linear-gradient(135deg,rgba(251,191,36,0.08),rgba(10,16,30,0.8));}
+
+.arch-arrow-v{display:flex;justify-content:center;align-items:center;height:28px;position:relative;}
+.arch-arrow-v::before{content:"";position:absolute;left:50%;top:0;transform:translateX(-50%);width:2px;height:20px;background:linear-gradient(180deg,rgba(149,177,229,0.4),rgba(149,177,229,0.1));}
+.arch-arrow-v::after{content:"▼";position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:0.65rem;color:rgba(149,177,229,0.5);}
+.arch-arrow-label{position:absolute;left:calc(50% + 6px);top:50%;transform:translateY(-50%);font-size:0.65rem;color:var(--text-muted);font-weight:600;white-space:nowrap;}
+
+/* ── Flow diagram (slide 5) ── */
+.flow-step{display:flex;align-items:center;gap:0;}
+.flow-node{padding:10px 16px;border-radius:12px;border:1px solid var(--border-soft);
+  background:rgba(10,16,30,0.85);font-size:0.82rem;font-weight:700;text-align:center;white-space:nowrap;}
+.flow-arrow{display:flex;align-items:center;padding:0 4px;color:rgba(149,177,229,0.4);font-size:1rem;}
+.flow-arrow-label{font-size:0.65rem;color:var(--text-muted);text-align:center;margin-top:2px;}
+
+/* ── Table ── */
+.styled-table{width:100%;border-collapse:collapse;font-size:0.84rem;}
+.styled-table th{padding:10px 14px;text-align:left;font-size:0.72rem;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;
+  color:var(--text-muted);border-bottom:2px solid var(--border-mid);background:rgba(15,24,42,0.6);}
+.styled-table td{padding:10px 14px;border-bottom:1px solid var(--border-soft);color:var(--text-secondary);vertical-align:top;}
+.styled-table td strong{color:var(--text-primary);}
+.styled-table tbody tr:hover td{background:rgba(255,255,255,0.02);}
+.table-wrap{border-radius:16px;border:1px solid var(--border-soft);overflow:hidden;}
+
+/* ── Contrib table ── */
+.contrib-table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+.contrib-table th{padding:11px 14px;text-align:left;font-size:0.7rem;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;
+  color:var(--text-muted);border-bottom:2px solid var(--border-mid);background:rgba(10,16,30,0.7);}
+.contrib-table td{padding:13px 14px;border-bottom:1px solid var(--border-soft);vertical-align:top;line-height:1.5;}
+.contrib-table td:first-child{font-weight:700;color:var(--text-primary);white-space:nowrap;}
+.contrib-table td:nth-child(2){color:var(--text-secondary);}
+.contrib-table td:nth-child(3){color:var(--text-muted);font-size:0.78rem;}
+.contrib-table td:nth-child(4){font-size:0.8rem;}
+.contrib-row-hs td{background:rgba(78,141,255,0.04);}
+.contrib-row-vm td{background:rgba(192,132,252,0.04);}
+.contrib-row-sp td{background:rgba(255,122,69,0.04);}
+.contrib-row-am td{background:rgba(124,240,188,0.04);}
+.impact-badge{display:inline-flex;padding:3px 10px;border-radius:999px;font-size:0.72rem;font-weight:700;border:1px solid;}
+.impact-hs{background:rgba(78,141,255,0.12);border-color:rgba(78,141,255,0.28);color:#85b3ff;}
+.impact-vm{background:rgba(192,132,252,0.12);border-color:rgba(192,132,252,0.28);color:#d0b0ff;}
+.impact-sp{background:rgba(255,122,69,0.12);border-color:rgba(255,122,69,0.28);color:#ffb085;}
+.impact-am{background:rgba(124,240,188,0.12);border-color:rgba(124,240,188,0.28);color:#7cf0bc;}
+
+/* ── Bullet list ── */
+.bullet-list{display:grid;gap:10px;margin-top:4px;}
+.bullet-item{display:flex;gap:12px;align-items:flex-start;padding:10px 14px;border-radius:14px;
+  background:rgba(255,255,255,0.03);border:1px solid var(--border-soft);}
+.bullet-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px;}
+.bullet-copy{display:grid;gap:3px;}
+.bullet-copy strong{font-size:0.9rem;color:var(--text-primary);}
+.bullet-copy span{font-size:0.82rem;color:var(--text-secondary);line-height:1.5;}
+
+/* ── Metric cards ── */
+.metric-row{display:flex;gap:14px;margin-top:6px;}
+.metric-box{flex:1;padding:14px 16px;border-radius:16px;border:1px solid var(--border-soft);
+  background:rgba(10,16,30,0.75);display:grid;gap:4px;}
+.metric-val{font-size:1.6rem;font-weight:800;font-family:"Space Grotesk",sans-serif;line-height:1;}
+.metric-label{font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;}
+
+/* ── Q&A slide ── */
+.qa-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:20px;}
+.qa-glyph{font-size:5rem;line-height:1;}
+.qa-title{font-size:clamp(2.4rem,5vw,4rem);letter-spacing:-0.05em;}
+.qa-title span{background:linear-gradient(135deg,var(--accent-orange),var(--accent-blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.qa-sub{color:var(--text-secondary);font-size:1.05rem;max-width:46ch;line-height:1.6;}
+.qa-chips{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div id="deck">
+
+<!-- ══════════════════════════════════════════
+     SLIDE 1 · TITLE
+══════════════════════════════════════════ -->
+<section class="slide title-slide active">
+  <div>
+    <div class="title-course-badge">CMPE 273 · Final Project · Spring 2026</div>
+    <div class="title-eyebrow">Distributed Systems</div>
+    <h1 class="title-hero">Erase<span>Graph</span></h1>
+    <p class="title-tagline">Verifiable deletion propagation in distributed systems — observable, traceable, and auditable end-to-end.</p>
+    <div class="team-chips">
+      <div class="team-chip">Haoyuan Shan</div>
+      <div class="team-chip">Vritika Malhotra</div>
+      <div class="team-chip">Sakshat Patil</div>
+      <div class="team-chip">Asim Mohammed</div>
+    </div>
+  </div>
+  <!-- Mini architecture preview on the right -->
+  <div class="title-side">
+    <div class="mini-arch-box"><span class="mini-arch-dot dot-blue"></span>Frontend Dashboard</div>
+    <div class="mini-arch-connector"></div>
+    <div class="mini-arch-box"><span class="mini-arch-dot dot-orange"></span>Backend Orchestrator</div>
+    <div class="mini-arch-connector"></div>
+    <div class="mini-arch-box"><span class="mini-arch-dot dot-purple"></span>RabbitMQ Event Bus</div>
+    <div class="mini-arch-connector"></div>
+    <div class="mini-arch-box"><span class="mini-arch-dot dot-green"></span>5 Cleanup Workers</div>
+    <div class="mini-arch-connector"></div>
+    <div class="mini-arch-box"><span class="mini-arch-dot dot-orange"></span>Proof &amp; Audit Chain</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 2 · PROBLEM & MOTIVATION
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Problem &amp; Motivation</div>
+  <h2 class="slide-title">Deletion is harder than it looks</h2>
+  <p class="slide-sub">User data lives in many places. A single-service delete leaves stale copies silently behind.</p>
+  <div class="cols-2" style="margin-top:18px;">
+    <div style="display:grid;gap:10px;">
+      <div class="bullet-item">
+        <span class="bullet-icon">🗄️</span>
+        <div class="bullet-copy"><strong>Fragmented data stores</strong><span>Primary DB, cache, search index, analytics warehouse, and backup — each holds a copy of user data.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">🚫</span>
+        <div class="bullet-copy"><strong>Single-system deletes aren't enough</strong><span>Removing a record from Postgres leaves it live in Redis, Elasticsearch, S3, and analytics.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">📋</span>
+        <div class="bullet-copy"><strong>Compliance demands proof</strong><span>GDPR / CCPA require auditable evidence that deletion actually propagated — not just a log entry.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">🔍</span>
+        <div class="bullet-copy"><strong>No visibility into failures</strong><span>Without tracing, a partial failure is invisible — some services succeed, others silently fail.</span></div>
+      </div>
+    </div>
+    <!-- Data scatter visual -->
+    <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+      <div class="card-label">User data lives in…</div>
+      <svg viewBox="0 0 320 260" width="100%" style="max-height:230px;">
+        <!-- Central user icon -->
+        <circle cx="160" cy="50" r="28" fill="rgba(78,141,255,0.15)" stroke="rgba(78,141,255,0.4)" stroke-width="1.5"/>
+        <text x="160" y="45" text-anchor="middle" font-size="18">👤</text>
+        <text x="160" y="62" text-anchor="middle" font-size="9" fill="#85b3ff" font-family="Inter,sans-serif" font-weight="700">User</text>
+        <!-- Spokes to data stores, evenly spaced, no overlap -->
+        <!-- Postgres: left -->
+        <line x1="132" y1="65" x2="58" y2="115" stroke="rgba(149,177,229,0.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <!-- Redis: upper-right -->
+        <line x1="185" y1="60" x2="252" y2="108" stroke="rgba(149,177,229,0.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <!-- Search: lower-left -->
+        <line x1="145" y1="76" x2="68" y2="178" stroke="rgba(149,177,229,0.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <!-- Analytics: lower-right -->
+        <line x1="172" y1="76" x2="250" y2="175" stroke="rgba(149,177,229,0.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <!-- Backup: bottom-center -->
+        <line x1="160" y1="78" x2="160" y2="185" stroke="rgba(149,177,229,0.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Postgres box -->
+        <rect x="8" y="110" width="100" height="38" rx="10" fill="rgba(10,16,30,0.85)" stroke="rgba(255,122,69,0.35)" stroke-width="1.5"/>
+        <text x="58" y="127" text-anchor="middle" font-size="8" fill="#ffb085" font-family="Inter,sans-serif" font-weight="700">🗄️  PostgreSQL</text>
+        <text x="58" y="140" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Primary DB</text>
+
+        <!-- Redis box -->
+        <rect x="212" y="103" width="100" height="38" rx="10" fill="rgba(10,16,30,0.85)" stroke="rgba(78,141,255,0.35)" stroke-width="1.5"/>
+        <text x="262" y="120" text-anchor="middle" font-size="8" fill="#85b3ff" font-family="Inter,sans-serif" font-weight="700">⚡  Redis</text>
+        <text x="262" y="133" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Cache Layer</text>
+
+        <!-- Search box -->
+        <rect x="8" y="178" width="108" height="38" rx="10" fill="rgba(10,16,30,0.85)" stroke="rgba(192,132,252,0.35)" stroke-width="1.5"/>
+        <text x="62" y="195" text-anchor="middle" font-size="8" fill="#d0b0ff" font-family="Inter,sans-serif" font-weight="700">🔍  Elasticsearch</text>
+        <text x="62" y="208" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Search Index</text>
+
+        <!-- Analytics box -->
+        <rect x="204" y="170" width="110" height="38" rx="10" fill="rgba(10,16,30,0.85)" stroke="rgba(124,240,188,0.35)" stroke-width="1.5"/>
+        <text x="259" y="187" text-anchor="middle" font-size="8" fill="#7cf0bc" font-family="Inter,sans-serif" font-weight="700">📊  Analytics</text>
+        <text x="259" y="200" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Data Warehouse</text>
+
+        <!-- Backup box -->
+        <rect x="100" y="185" width="120" height="38" rx="10" fill="rgba(10,16,30,0.85)" stroke="rgba(251,191,36,0.35)" stroke-width="1.5"/>
+        <text x="160" y="202" text-anchor="middle" font-size="8" fill="#fcd34d" font-family="Inter,sans-serif" font-weight="700">💾  Backup</text>
+        <text x="160" y="215" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">S3 / Blob Store</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 3 · SOLUTION OVERVIEW
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Solution Overview</div>
+  <h2 class="slide-title">Event-driven orchestration with proof</h2>
+  <p class="slide-sub">EraseGraph coordinates deletion across every data store and produces an immutable audit trail — automatically.</p>
+
+  <!-- High-level flow -->
+  <div style="margin-top:20px;padding:18px 20px;border-radius:18px;border:1px solid var(--border-soft);background:rgba(10,16,30,0.7);">
+    <div class="card-label" style="margin-bottom:12px;">End-to-End Flow</div>
+    <svg viewBox="0 0 860 68" width="100%" style="overflow:visible;">
+      <!-- Nodes -->
+      <g>
+        <!-- Request -->
+        <rect x="0" y="14" width="120" height="40" rx="10" fill="rgba(78,141,255,0.12)" stroke="rgba(78,141,255,0.35)" stroke-width="1.5"/>
+        <text x="60" y="31" text-anchor="middle" font-size="9" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">Deletion</text>
+        <text x="60" y="44" text-anchor="middle" font-size="9" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">Request</text>
+        <!-- Arrow 1 -->
+        <line x1="120" y1="34" x2="150" y2="34" stroke="rgba(149,177,229,0.45)" stroke-width="1.5"/>
+        <polygon points="150,30 158,34 150,38" fill="rgba(149,177,229,0.45)"/>
+        <text x="135" y="27" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">REST</text>
+        <!-- Backend -->
+        <rect x="158" y="8" width="130" height="52" rx="10" fill="rgba(255,122,69,0.12)" stroke="rgba(255,122,69,0.38)" stroke-width="1.5"/>
+        <text x="223" y="31" text-anchor="middle" font-size="9" fill="#ffb085" font-weight="700" font-family="Inter,sans-serif">Backend</text>
+        <text x="223" y="44" text-anchor="middle" font-size="9" fill="#ffb085" font-weight="700" font-family="Inter,sans-serif">Orchestrator</text>
+        <!-- Arrow 2 -->
+        <line x1="288" y1="34" x2="318" y2="34" stroke="rgba(149,177,229,0.45)" stroke-width="1.5"/>
+        <polygon points="318,30 326,34 318,38" fill="rgba(149,177,229,0.45)"/>
+        <text x="303" y="27" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">AMQP</text>
+        <!-- RabbitMQ -->
+        <rect x="326" y="8" width="120" height="52" rx="10" fill="rgba(192,132,252,0.12)" stroke="rgba(192,132,252,0.38)" stroke-width="1.5"/>
+        <text x="386" y="31" text-anchor="middle" font-size="9" fill="#d0b0ff" font-weight="700" font-family="Inter,sans-serif">RabbitMQ</text>
+        <text x="386" y="44" text-anchor="middle" font-size="9" fill="#d0b0ff" font-weight="700" font-family="Inter,sans-serif">Event Bus</text>
+        <!-- Arrow 3 -->
+        <line x1="446" y1="34" x2="476" y2="34" stroke="rgba(149,177,229,0.45)" stroke-width="1.5"/>
+        <polygon points="476,30 484,34 476,38" fill="rgba(149,177,229,0.45)"/>
+        <text x="461" y="27" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Fan-out</text>
+        <!-- Services -->
+        <rect x="484" y="8" width="130" height="52" rx="10" fill="rgba(124,240,188,0.10)" stroke="rgba(124,240,188,0.35)" stroke-width="1.5"/>
+        <text x="549" y="31" text-anchor="middle" font-size="9" fill="#7cf0bc" font-weight="700" font-family="Inter,sans-serif">Cleanup</text>
+        <text x="549" y="44" text-anchor="middle" font-size="9" fill="#7cf0bc" font-weight="700" font-family="Inter,sans-serif">Workers × 5</text>
+        <!-- Arrow 4 -->
+        <line x1="614" y1="34" x2="644" y2="34" stroke="rgba(149,177,229,0.45)" stroke-width="1.5"/>
+        <polygon points="644,30 652,34 644,38" fill="rgba(149,177,229,0.45)"/>
+        <text x="629" y="27" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Events</text>
+        <!-- Proof -->
+        <rect x="652" y="8" width="100" height="52" rx="10" fill="rgba(251,191,36,0.10)" stroke="rgba(251,191,36,0.35)" stroke-width="1.5"/>
+        <text x="702" y="31" text-anchor="middle" font-size="9" fill="#fcd34d" font-weight="700" font-family="Inter,sans-serif">Proof</text>
+        <text x="702" y="44" text-anchor="middle" font-size="9" fill="#fcd34d" font-weight="700" font-family="Inter,sans-serif">Audit Chain</text>
+        <!-- Arrow 5 -->
+        <line x1="752" y1="34" x2="782" y2="34" stroke="rgba(149,177,229,0.45)" stroke-width="1.5"/>
+        <polygon points="782,30 790,34 782,38" fill="rgba(149,177,229,0.45)"/>
+        <text x="767" y="27" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">View</text>
+        <!-- Dashboard -->
+        <rect x="790" y="8" width="70" height="52" rx="10" fill="rgba(78,141,255,0.12)" stroke="rgba(78,141,255,0.35)" stroke-width="1.5"/>
+        <text x="825" y="31" text-anchor="middle" font-size="9" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">Admin</text>
+        <text x="825" y="44" text-anchor="middle" font-size="9" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">UI</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="cols-3" style="margin-top:14px;">
+    <div class="card card-accent-orange">
+      <div class="card-icon">🎯</div>
+      <h3>Orchestrated Multi-Service Cleanup</h3>
+      <p>A single request triggers coordinated deletion across DB, cache, search, analytics, and backup in parallel.</p>
+    </div>
+    <div class="card card-accent-blue">
+      <div class="card-icon">🔁</div>
+      <h3>Resilient by Default</h3>
+      <p>Retry queues, dead-letter handling, circuit breakers, and idempotency guards make every step failure-safe.</p>
+    </div>
+    <div class="card card-accent-green">
+      <div class="card-icon">🔐</div>
+      <h3>Cryptographic Proof Chain</h3>
+      <p>Every deletion event is hash-chained, signed, and exportable — tamper-evident audit trail, always verifiable.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 4 · SYSTEM ARCHITECTURE
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">System Architecture</div>
+  <h2 class="slide-title">Full-stack distributed system</h2>
+
+  <div style="flex:1;display:flex;flex-direction:column;margin-top:16px;">
+    <svg viewBox="0 0 880 390" width="100%" style="flex:1;max-height:370px;overflow:visible;">
+      <!-- ── Layer labels ── -->
+      <text x="12" y="50" font-size="8" fill="#7180a0" font-family="Inter,sans-serif" font-weight="700" text-transform="uppercase">CLIENT</text>
+      <text x="12" y="148" font-size="8" fill="#7180a0" font-family="Inter,sans-serif" font-weight="700">ORCHESTRATION</text>
+      <text x="12" y="240" font-size="8" fill="#7180a0" font-family="Inter,sans-serif" font-weight="700">MESSAGING</text>
+      <text x="12" y="328" font-size="8" fill="#7180a0" font-family="Inter,sans-serif" font-weight="700">WORKERS</text>
+      <text x="12" y="385" font-size="8" fill="#7180a0" font-family="Inter,sans-serif" font-weight="700">STORAGE</text>
+
+      <!-- Separator lines -->
+      <line x1="75" y1="20" x2="75" y2="395" stroke="rgba(149,177,229,0.08)" stroke-width="1"/>
+
+      <!-- ── ROW 0: Frontend (centered) ── -->
+      <rect x="305" y="14" width="270" height="48" rx="12" fill="rgba(78,141,255,0.12)" stroke="rgba(78,141,255,0.38)" stroke-width="1.5"/>
+      <text x="440" y="34" text-anchor="middle" font-size="10" fill="#85b3ff" font-weight="700" font-family="Space Grotesk,sans-serif">Frontend Dashboard</text>
+      <text x="440" y="50" text-anchor="middle" font-size="8.5" fill="#7180a0" font-family="Inter,sans-serif">React · Status · Proof · Bulk Upload · Admin</text>
+
+      <!-- Frontend → Backend (vertical center arrow) -->
+      <line x1="440" y1="62" x2="440" y2="110" stroke="rgba(149,177,229,0.35)" stroke-width="1.5" stroke-dasharray="0"/>
+      <polygon points="435,108 440,116 445,108" fill="rgba(149,177,229,0.35)"/>
+      <text x="452" y="91" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">REST / SSE</text>
+
+      <!-- ── ROW 1: Backend Orchestrator ── -->
+      <rect x="240" y="116" width="400" height="48" rx="12" fill="rgba(255,122,69,0.12)" stroke="rgba(255,122,69,0.38)" stroke-width="1.5"/>
+      <text x="440" y="136" text-anchor="middle" font-size="10" fill="#ffb085" font-weight="700" font-family="Space Grotesk,sans-serif">Backend Orchestrator (NestJS)</text>
+      <text x="440" y="151" text-anchor="middle" font-size="8.5" fill="#7180a0" font-family="Inter,sans-serif">Workflow Coord · Auth · Retry Logic · SLA Monitor · Proof Chain</text>
+
+      <!-- Backend → RabbitMQ (straight down-right) -->
+      <line x1="550" y1="164" x2="620" y2="214" stroke="rgba(192,132,252,0.4)" stroke-width="1.5"/>
+      <polygon points="615,210 622,218 624,209" fill="rgba(192,132,252,0.4)"/>
+      <text x="612" y="195" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">AMQP publish</text>
+
+      <!-- Backend → PostgreSQL (straight down-left) -->
+      <line x1="330" y1="164" x2="200" y2="356" stroke="rgba(255,122,69,0.3)" stroke-width="1.5"/>
+      <polygon points="195,352 200,361 205,352" fill="rgba(255,122,69,0.3)"/>
+      <text x="232" y="268" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">TypeORM</text>
+
+      <!-- Backend → Redis (straight down, slight right) -->
+      <line x1="440" y1="164" x2="440" y2="356" stroke="rgba(251,191,36,0.3)" stroke-width="1.5"/>
+      <polygon points="435,354 440,363 445,354" fill="rgba(251,191,36,0.3)"/>
+      <text x="452" y="265" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">Circuit state</text>
+
+      <!-- ── ROW 2: RabbitMQ + Observability ── -->
+      <rect x="560" y="214" width="190" height="44" rx="12" fill="rgba(192,132,252,0.12)" stroke="rgba(192,132,252,0.38)" stroke-width="1.5"/>
+      <text x="655" y="233" text-anchor="middle" font-size="10" fill="#d0b0ff" font-weight="700" font-family="Space Grotesk,sans-serif">RabbitMQ</text>
+      <text x="655" y="248" text-anchor="middle" font-size="8.5" fill="#7180a0" font-family="Inter,sans-serif">Topic Exchange · DLQ · Retry Queue</text>
+
+      <!-- Observability box -->
+      <rect x="82" y="214" width="200" height="44" rx="12" fill="rgba(124,240,188,0.08)" stroke="rgba(124,240,188,0.28)" stroke-width="1.5"/>
+      <text x="182" y="233" text-anchor="middle" font-size="9.5" fill="#7cf0bc" font-weight="700" font-family="Space Grotesk,sans-serif">Observability Stack</text>
+      <text x="182" y="248" text-anchor="middle" font-size="8.5" fill="#7180a0" font-family="Inter,sans-serif">OpenTelemetry · Jaeger · Prometheus · Grafana</text>
+
+      <!-- Backend → Observability (left arrow) -->
+      <line x1="310" y1="150" x2="230" y2="214" stroke="rgba(124,240,188,0.3)" stroke-width="1.5"/>
+      <polygon points="225,210 232,218 234,209" fill="rgba(124,240,188,0.3)"/>
+      <text x="258" y="186" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">traces / metrics</text>
+
+      <!-- RabbitMQ fan-out arrows to workers -->
+      <!-- Cache -->
+      <line x1="610" y1="258" x2="136" y2="306" stroke="rgba(192,132,252,0.25)" stroke-width="1.4" stroke-dasharray="5,3"/>
+      <polygon points="131,303 136,311 141,303" fill="rgba(192,132,252,0.25)"/>
+      <!-- Search -->
+      <line x1="628" y1="258" x2="282" y2="306" stroke="rgba(192,132,252,0.25)" stroke-width="1.4" stroke-dasharray="5,3"/>
+      <polygon points="277,303 282,311 287,303" fill="rgba(192,132,252,0.25)"/>
+      <!-- Analytics -->
+      <line x1="655" y1="258" x2="508" y2="306" stroke="rgba(192,132,252,0.25)" stroke-width="1.4" stroke-dasharray="5,3"/>
+      <polygon points="503,303 508,311 513,303" fill="rgba(192,132,252,0.25)"/>
+      <!-- Backup -->
+      <line x1="685" y1="258" x2="654" y2="306" stroke="rgba(192,132,252,0.25)" stroke-width="1.4" stroke-dasharray="5,3"/>
+      <polygon points="649,303 654,311 659,303" fill="rgba(192,132,252,0.25)"/>
+      <!-- Proof -->
+      <line x1="710" y1="258" x2="800" y2="306" stroke="rgba(192,132,252,0.25)" stroke-width="1.4" stroke-dasharray="5,3"/>
+      <polygon points="795,303 800,311 805,303" fill="rgba(192,132,252,0.25)"/>
+
+      <!-- ── ROW 3: Workers ── -->
+      <!-- Cache Cleanup -->
+      <rect x="82" y="306" width="108" height="38" rx="10" fill="rgba(255,122,69,0.10)" stroke="rgba(255,122,69,0.30)" stroke-width="1.4"/>
+      <text x="136" y="321" text-anchor="middle" font-size="8.5" fill="#ffb085" font-weight="700" font-family="Inter,sans-serif">Cache</text>
+      <text x="136" y="334" text-anchor="middle" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">Cleanup</text>
+      <!-- Search Cleanup -->
+      <rect x="228" y="306" width="108" height="38" rx="10" fill="rgba(78,141,255,0.10)" stroke="rgba(78,141,255,0.30)" stroke-width="1.4"/>
+      <text x="282" y="321" text-anchor="middle" font-size="8.5" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">Search</text>
+      <text x="282" y="334" text-anchor="middle" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">Cleanup</text>
+      <!-- Analytics Cleanup -->
+      <rect x="454" y="306" width="108" height="38" rx="10" fill="rgba(124,240,188,0.08)" stroke="rgba(124,240,188,0.28)" stroke-width="1.4"/>
+      <text x="508" y="321" text-anchor="middle" font-size="8.5" fill="#7cf0bc" font-weight="700" font-family="Inter,sans-serif">Analytics</text>
+      <text x="508" y="334" text-anchor="middle" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">Cleanup</text>
+      <!-- Backup Service -->
+      <rect x="600" y="306" width="108" height="38" rx="10" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.28)" stroke-width="1.4"/>
+      <text x="654" y="321" text-anchor="middle" font-size="8.5" fill="#fcd34d" font-weight="700" font-family="Inter,sans-serif">Backup</text>
+      <text x="654" y="334" text-anchor="middle" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">Service</text>
+      <!-- Proof Service -->
+      <rect x="746" y="306" width="108" height="38" rx="10" fill="rgba(192,132,252,0.10)" stroke="rgba(192,132,252,0.30)" stroke-width="1.4"/>
+      <text x="800" y="321" text-anchor="middle" font-size="8.5" fill="#d0b0ff" font-weight="700" font-family="Inter,sans-serif">Proof</text>
+      <text x="800" y="334" text-anchor="middle" font-size="8" fill="#7180a0" font-family="Inter,sans-serif">Service</text>
+
+      <!-- ── ROW 4: Storage ── -->
+      <!-- PostgreSQL -->
+      <rect x="82" y="356" width="190" height="34" rx="10" fill="rgba(10,16,30,0.85)" stroke="rgba(255,122,69,0.28)" stroke-width="1.4"/>
+      <text x="177" y="371" text-anchor="middle" font-size="8.5" fill="#ffb085" font-weight="700" font-family="Inter,sans-serif">🗄️  PostgreSQL</text>
+      <text x="177" y="383" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Requests · Proof Events · Steps</text>
+
+      <!-- Redis -->
+      <rect x="346" y="356" width="188" height="34" rx="10" fill="rgba(10,16,30,0.85)" stroke="rgba(251,191,36,0.28)" stroke-width="1.4"/>
+      <text x="440" y="371" text-anchor="middle" font-size="8.5" fill="#fcd34d" font-weight="700" font-family="Inter,sans-serif">⚡  Redis</text>
+      <text x="440" y="383" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">Circuit Breaker State</text>
+
+      <!-- Workers → PostgreSQL arrows (from cache and search workers) -->
+      <line x1="136" y1="344" x2="157" y2="356" stroke="rgba(149,177,229,0.2)" stroke-width="1.2"/>
+      <line x1="282" y1="344" x2="200" y2="356" stroke="rgba(149,177,229,0.2)" stroke-width="1.2"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 5 · END-TO-END WORKFLOW
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">End-to-End Workflow</div>
+  <h2 class="slide-title">Request lifecycle</h2>
+  <p class="slide-sub">Every deletion request moves through a well-defined state machine with step-level visibility.</p>
+
+  <div style="flex:1;display:flex;flex-direction:column;margin-top:16px;gap:14px;">
+    <!-- State machine -->
+    <div class="card" style="padding:16px 20px;">
+      <div class="card-label" style="margin-bottom:10px;">Request Status States</div>
+      <svg viewBox="0 0 800 56" width="100%" style="overflow:visible;">
+        <!-- PENDING -->
+        <rect x="0" y="8" width="110" height="40" rx="10" fill="rgba(233,179,87,0.14)" stroke="rgba(233,179,87,0.35)" stroke-width="1.5"/>
+        <text x="55" y="32" text-anchor="middle" font-size="9.5" fill="#fcd34d" font-weight="700" font-family="Inter,sans-serif">PENDING</text>
+        <!-- → -->
+        <line x1="110" y1="28" x2="138" y2="28" stroke="rgba(149,177,229,0.4)" stroke-width="1.5"/>
+        <polygon points="136,24 144,28 136,32" fill="rgba(149,177,229,0.4)"/>
+        <!-- RUNNING -->
+        <rect x="144" y="8" width="110" height="40" rx="10" fill="rgba(78,141,255,0.14)" stroke="rgba(78,141,255,0.35)" stroke-width="1.5"/>
+        <text x="199" y="32" text-anchor="middle" font-size="9.5" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">RUNNING</text>
+        <!-- → 3 branches from RUNNING -->
+        <!-- to COMPLETED -->
+        <line x1="254" y1="18" x2="310" y2="8" stroke="rgba(149,177,229,0.35)" stroke-width="1.3"/>
+        <polygon points="308,4 314,10 307,12" fill="rgba(149,177,229,0.35)"/>
+        <!-- to PARTIAL_COMPLETED -->
+        <line x1="254" y1="28" x2="342" y2="28" stroke="rgba(149,177,229,0.35)" stroke-width="1.3"/>
+        <polygon points="340,24 348,28 340,32" fill="rgba(149,177,229,0.35)"/>
+        <!-- to FAILED -->
+        <line x1="254" y1="38" x2="310" y2="50" stroke="rgba(149,177,229,0.35)" stroke-width="1.3"/>
+        <polygon points="308,47 315,51 309,56" fill="rgba(149,177,229,0.35)"/>
+        <!-- COMPLETED -->
+        <rect x="314" y="0" width="140" height="36" rx="10" fill="rgba(37,157,107,0.14)" stroke="rgba(37,157,107,0.35)" stroke-width="1.5"/>
+        <text x="384" y="22" text-anchor="middle" font-size="9.5" fill="#7cf0bc" font-weight="700" font-family="Inter,sans-serif">COMPLETED</text>
+        <!-- PARTIAL_COMPLETED -->
+        <rect x="348" y="10" width="185" height="36" rx="10" fill="rgba(78,141,255,0.14)" stroke="rgba(78,141,255,0.35)" stroke-width="1.5"/>
+        <text x="440" y="32" text-anchor="middle" font-size="9.5" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">PARTIAL_COMPLETED</text>
+        <!-- FAILED -->
+        <rect x="314" y="36" width="110" height="36" rx="10" fill="rgba(212,87,87,0.14)" stroke="rgba(212,87,87,0.35)" stroke-width="1.5"/>
+        <text x="369" y="58" text-anchor="middle" font-size="9.5" fill="#ffb0b0" font-weight="700" font-family="Inter,sans-serif">FAILED</text>
+        <!-- FAILED → retry label -->
+        <line x1="424" y1="54" x2="490" y2="54" stroke="rgba(178,111,238,0.4)" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <polygon points="488,50 496,54 488,58" fill="rgba(178,111,238,0.4)"/>
+        <text x="456" y="48" text-anchor="middle" font-size="8" fill="#d0b0ff" font-family="Inter,sans-serif">auto-retry</text>
+        <!-- RETRYING -->
+        <rect x="496" y="36" width="120" height="36" rx="10" fill="rgba(178,111,238,0.14)" stroke="rgba(178,111,238,0.35)" stroke-width="1.5"/>
+        <text x="556" y="58" text-anchor="middle" font-size="9.5" fill="#d0b0ff" font-weight="700" font-family="Inter,sans-serif">RETRYING</text>
+        <!-- RETRYING → RUNNING (loop back) -->
+        <path d="M616 54 Q680 70 680 28 Q680 8 630 8 Q570 8 534 8" stroke="rgba(178,111,238,0.3)" stroke-width="1.3" fill="none" stroke-dasharray="4,3"/>
+        <polygon points="532,4 526,8 532,12" fill="rgba(178,111,238,0.3)"/>
+        <!-- DLQ (end state) -->
+        <line x1="616" y1="54" x2="700" y2="54" stroke="rgba(212,87,87,0.35)" stroke-width="1.3"/>
+        <polygon points="698,50 706,54 698,58" fill="rgba(212,87,87,0.35)"/>
+        <rect x="706" y="36" width="90" height="36" rx="10" fill="rgba(212,87,87,0.10)" stroke="rgba(212,87,87,0.30)" stroke-width="1.5"/>
+        <text x="751" y="58" text-anchor="middle" font-size="9" fill="#ffb0b0" font-weight="700" font-family="Inter,sans-serif">DLQ</text>
+        <text x="692" y="48" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">max retries</text>
+      </svg>
+    </div>
+
+    <!-- Step-level detail -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="card">
+        <div class="card-label" style="margin-bottom:10px;">Per-Service Step States</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <span class="pill pill-orange">PENDING</span>
+          <span class="pill pill-blue">RUNNING</span>
+          <span class="pill pill-green">SUCCEEDED</span>
+          <span class="pill" style="background:rgba(212,87,87,0.14);border-color:rgba(212,87,87,0.28);color:#ffb0b0;">FAILED</span>
+          <span class="pill pill-purple">RETRYING</span>
+          <span class="pill" style="background:rgba(118,126,140,0.14);border-color:rgba(118,126,140,0.28);color:#c7ced9;">SKIPPED_CIRCUIT_OPEN</span>
+        </div>
+        <p style="margin-top:10px;font-size:0.82rem;color:var(--text-secondary);">Each service reports its own step status back via RabbitMQ. The orchestrator aggregates into a final request state.</p>
+      </div>
+      <div class="card card-accent-green">
+        <div class="card-label" style="margin-bottom:10px;">PARTIAL_COMPLETED is intentional</div>
+        <p style="font-size:0.83rem;color:var(--text-secondary);">If non-critical services (e.g. analytics) fail but primary + cache + search succeed, the system reports partial completion — allowing auditors to see exactly which systems were cleaned.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 6 · RELIABILITY DESIGN
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Reliability Design</div>
+  <h2 class="slide-title">Built for failure, not against it</h2>
+  <p class="slide-sub">Three layered mechanisms ensure every deletion eventually completes — or is explicitly accounted for.</p>
+
+  <div class="cols-3" style="margin-top:18px;">
+    <div class="card card-accent-orange">
+      <div class="card-icon">🔁</div>
+      <h3>Retry + Dead-Letter Queue</h3>
+      <ul>
+        <li>Failed messages re-queue with exponential backoff</li>
+        <li>After <strong>N attempts</strong>, routed to DLQ for manual inspection</li>
+        <li>DLQ replay endpoint lets ops re-process without data loss</li>
+        <li>RabbitMQ TTL + x-dead-letter-exchange wiring</li>
+      </ul>
+    </div>
+    <div class="card card-accent-purple">
+      <div class="card-icon">🛡️</div>
+      <h3>Idempotency Guards</h3>
+      <ul>
+        <li><code>processed_events</code> table with unique <code>(event_id, service_name)</code></li>
+        <li>PostgreSQL unique constraint raises <code>23505</code> on duplicate → service skips silently</li>
+        <li>Duplicate events logged to proof chain as <code>DUPLICATE_EVENT_IGNORED</code></li>
+        <li>Safe to re-deliver messages at any time</li>
+      </ul>
+    </div>
+    <div class="card card-accent-blue">
+      <div class="card-icon">⚡</div>
+      <h3>Circuit Breaker</h3>
+      <ul>
+        <li>Per-service circuit stored in Redis</li>
+        <li>CLOSED → OPEN after failure threshold</li>
+        <li>OPEN steps report <code>SKIPPED_CIRCUIT_OPEN</code> — no wasted retries</li>
+        <li>Half-open probe automatically resets after cooldown</li>
+        <li>Admin UI shows real-time breaker state per service</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="margin-top:14px;padding:14px 20px;border-radius:16px;border:1px solid var(--border-soft);background:rgba(10,16,30,0.7);">
+    <div class="card-label" style="margin-bottom:10px;">Failure Recovery Flow</div>
+    <svg viewBox="0 0 860 52" width="100%" style="overflow:visible;">
+      <rect x="0" y="6" width="110" height="40" rx="10" fill="rgba(212,87,87,0.12)" stroke="rgba(212,87,87,0.32)" stroke-width="1.4"/>
+      <text x="55" y="30" text-anchor="middle" font-size="9" fill="#ffb0b0" font-weight="700" font-family="Inter,sans-serif">Worker Fails</text>
+      <line x1="110" y1="26" x2="138" y2="26" stroke="rgba(149,177,229,0.4)" stroke-width="1.5"/>
+      <polygon points="136,22 144,26 136,30" fill="rgba(149,177,229,0.4)"/>
+      <text x="124" y="20" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">nack</text>
+      <rect x="144" y="6" width="130" height="40" rx="10" fill="rgba(192,132,252,0.12)" stroke="rgba(192,132,252,0.32)" stroke-width="1.4"/>
+      <text x="209" y="30" text-anchor="middle" font-size="9" fill="#d0b0ff" font-weight="700" font-family="Inter,sans-serif">Retry Queue (TTL)</text>
+      <line x1="274" y1="26" x2="302" y2="26" stroke="rgba(149,177,229,0.4)" stroke-width="1.5"/>
+      <polygon points="300,22 308,26 300,30" fill="rgba(149,177,229,0.4)"/>
+      <text x="288" y="20" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">re-deliver</text>
+      <rect x="308" y="6" width="130" height="40" rx="10" fill="rgba(78,141,255,0.12)" stroke="rgba(78,141,255,0.32)" stroke-width="1.4"/>
+      <text x="373" y="30" text-anchor="middle" font-size="9" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">Worker Retries</text>
+      <!-- Success branch -->
+      <line x1="438" y1="16" x2="476" y2="6" stroke="rgba(37,157,107,0.4)" stroke-width="1.4"/>
+      <polygon points="474,2 482,6 474,10" fill="rgba(37,157,107,0.4)"/>
+      <text x="460" y="12" text-anchor="middle" font-size="7.5" fill="#7cf0bc" font-family="Inter,sans-serif">success</text>
+      <rect x="482" y="0" width="110" height="36" rx="10" fill="rgba(37,157,107,0.12)" stroke="rgba(37,157,107,0.30)" stroke-width="1.4"/>
+      <text x="537" y="22" text-anchor="middle" font-size="9" fill="#7cf0bc" font-weight="700" font-family="Inter,sans-serif">SUCCEEDED</text>
+      <!-- Failure branch → DLQ -->
+      <line x1="438" y1="36" x2="476" y2="46" stroke="rgba(212,87,87,0.4)" stroke-width="1.4"/>
+      <polygon points="474,43 481,48 476,54" fill="rgba(212,87,87,0.4)"/>
+      <text x="459" y="50" text-anchor="middle" font-size="7.5" fill="#ffb0b0" font-family="Inter,sans-serif">max retries</text>
+      <rect x="482" y="28" width="90" height="36" rx="10" fill="rgba(212,87,87,0.12)" stroke="rgba(212,87,87,0.30)" stroke-width="1.4"/>
+      <text x="527" y="50" text-anchor="middle" font-size="9" fill="#ffb0b0" font-weight="700" font-family="Inter,sans-serif">DLQ</text>
+      <!-- DLQ → Replay -->
+      <line x1="572" y1="46" x2="600" y2="46" stroke="rgba(251,191,36,0.4)" stroke-width="1.4"/>
+      <polygon points="598,42 606,46 598,50" fill="rgba(251,191,36,0.4)"/>
+      <text x="586" y="40" font-size="7.5" fill="#fcd34d" font-family="Inter,sans-serif">ops replay</text>
+      <rect x="606" y="28" width="120" height="36" rx="10" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.28)" stroke-width="1.4"/>
+      <text x="666" y="50" text-anchor="middle" font-size="9" fill="#fcd34d" font-weight="700" font-family="Inter,sans-serif">Replay API</text>
+      <!-- Replay → Worker -->
+      <line x1="726" y1="46" x2="754" y2="46" stroke="rgba(149,177,229,0.35)" stroke-width="1.4"/>
+      <polygon points="752,42 760,46 752,50" fill="rgba(149,177,229,0.35)"/>
+      <rect x="760" y="28" width="100" height="36" rx="10" fill="rgba(78,141,255,0.10)" stroke="rgba(78,141,255,0.28)" stroke-width="1.4"/>
+      <text x="810" y="50" text-anchor="middle" font-size="9" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">Re-process</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 7 · PROOF & AUDITABILITY
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Proof &amp; Auditability</div>
+  <h2 class="slide-title">Tamper-evident audit chain</h2>
+  <p class="slide-sub">Every deletion event is hash-chained. Modify any record and verification fails — cryptographically.</p>
+
+  <div class="cols-2" style="margin-top:18px;">
+    <div style="display:grid;gap:12px;">
+      <div class="bullet-item">
+        <span class="bullet-icon">🔗</span>
+        <div class="bullet-copy"><strong>Hash-chained proof events</strong><span>Each event records <code>previous_hash</code> + <code>event_hash</code> (SHA-256). Any tampering breaks the chain.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">🔒</span>
+        <div class="bullet-copy"><strong>Advisory lock during append</strong><span>PostgreSQL <code>pg_advisory_xact_lock</code> ensures sequential per-request chain writes under concurrent load.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">📤</span>
+        <div class="bullet-copy"><strong>Export &amp; verify</strong><span>Full proof chain exportable as JSON. One-click "Verify Chain" traverses all hashes and reports integrity status.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">📋</span>
+        <div class="bullet-copy"><strong>Compliance-ready</strong><span>Deletion evidence satisfies GDPR Art. 17 and CCPA deletion audit requirements out of the box.</span></div>
+      </div>
+    </div>
+
+    <!-- Proof chain visual -->
+    <div class="card card-accent-green">
+      <div class="card-label" style="margin-bottom:12px;">Proof Chain Structure</div>
+      <svg viewBox="0 0 290 240" width="100%" style="max-height:220px;">
+        <!-- Genesis block -->
+        <rect x="20" y="8" width="250" height="48" rx="10" fill="rgba(124,240,188,0.1)" stroke="rgba(124,240,188,0.35)" stroke-width="1.5"/>
+        <text x="145" y="26" text-anchor="middle" font-size="8.5" fill="#7cf0bc" font-weight="700" font-family="Inter,sans-serif">GENESIS</text>
+        <text x="145" y="40" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">hash: sha256(request_id + "genesis")</text>
+        <text x="145" y="50" text-anchor="middle" font-size="7" fill="#7180a0" font-family="Inter,sans-serif">prev: —</text>
+
+        <!-- Arrow -->
+        <line x1="145" y1="56" x2="145" y2="76" stroke="rgba(124,240,188,0.4)" stroke-width="2"/>
+        <polygon points="140,74 145,82 150,74" fill="rgba(124,240,188,0.4)"/>
+
+        <!-- Event 1 -->
+        <rect x="20" y="82" width="250" height="50" rx="10" fill="rgba(78,141,255,0.1)" stroke="rgba(78,141,255,0.32)" stroke-width="1.5"/>
+        <text x="145" y="100" text-anchor="middle" font-size="8.5" fill="#85b3ff" font-weight="700" font-family="Inter,sans-serif">DELETION_STEP_SUCCEEDED</text>
+        <text x="145" y="114" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">service: cache-cleanup</text>
+        <text x="145" y="125" text-anchor="middle" font-size="7" fill="#7180a0" font-family="Inter,sans-serif">hash: sha256(prev + payload)</text>
+
+        <!-- Arrow -->
+        <line x1="145" y1="132" x2="145" y2="152" stroke="rgba(124,240,188,0.4)" stroke-width="2"/>
+        <polygon points="140,150 145,158 150,150" fill="rgba(124,240,188,0.4)"/>
+
+        <!-- Event 2 -->
+        <rect x="20" y="158" width="250" height="50" rx="10" fill="rgba(192,132,252,0.1)" stroke="rgba(192,132,252,0.32)" stroke-width="1.5"/>
+        <text x="145" y="176" text-anchor="middle" font-size="8.5" fill="#d0b0ff" font-weight="700" font-family="Inter,sans-serif">DELETION_STEP_SUCCEEDED</text>
+        <text x="145" y="190" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">service: search-cleanup</text>
+        <text x="145" y="201" text-anchor="middle" font-size="7" fill="#7180a0" font-family="Inter,sans-serif">hash: sha256(prev + payload)</text>
+
+        <!-- Arrow -->
+        <line x1="145" y1="208" x2="145" y2="224" stroke="rgba(124,240,188,0.4)" stroke-width="2"/>
+        <text x="145" y="234" text-anchor="middle" font-size="7.5" fill="#7180a0" font-family="Inter,sans-serif">… continues for each service …</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 8 · CONSISTENCY & TRADEOFFS
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Consistency &amp; Tradeoffs</div>
+  <h2 class="slide-title">Eventual consistency, intentionally</h2>
+  <p class="slide-sub">Not all systems need the same consistency guarantee. We made deliberate tradeoffs per service.</p>
+
+  <div class="col-wide-left" style="margin-top:18px;">
+    <div class="table-wrap">
+      <table class="styled-table">
+        <thead>
+          <tr>
+            <th>System</th>
+            <th>Strategy</th>
+            <th>Latency</th>
+            <th>Consistency</th>
+            <th>Rationale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>PostgreSQL</strong></td>
+            <td><span class="pill pill-orange">Synchronous</span></td>
+            <td>Low</td>
+            <td>Strong</td>
+            <td>Source of truth; must be consistent first</td>
+          </tr>
+          <tr>
+            <td><strong>Cache (Redis)</strong></td>
+            <td><span class="pill pill-blue">Async Event</span></td>
+            <td>Very Low</td>
+            <td>Eventual</td>
+            <td>TTL provides natural expiry as backup</td>
+          </tr>
+          <tr>
+            <td><strong>Search Index</strong></td>
+            <td><span class="pill pill-blue">Async Event</span></td>
+            <td>Low</td>
+            <td>Eventual</td>
+            <td>Search staleness acceptable for seconds</td>
+          </tr>
+          <tr>
+            <td><strong>Analytics</strong></td>
+            <td><span class="pill pill-purple">Soft-delete / Delayed</span></td>
+            <td>High (deferred)</td>
+            <td>Eventual</td>
+            <td>Historical batch jobs tolerate delay; immutable logs preferred</td>
+          </tr>
+          <tr>
+            <td><strong>Backup</strong></td>
+            <td><span class="pill pill-purple">Scheduled</span></td>
+            <td>High (scheduled)</td>
+            <td>Eventual</td>
+            <td>Backup rotation cycle handles deletion on next run</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:grid;gap:12px;">
+      <div class="card card-accent-orange">
+        <div class="card-icon">⚖️</div>
+        <h3>Why PARTIAL_COMPLETED is good</h3>
+        <p>Rather than failing the whole request if analytics is slow, we record partial success. Auditors see exactly which systems were cleaned — more informative than a binary pass/fail.</p>
+      </div>
+      <div class="card card-accent-blue">
+        <div class="card-icon">📐</div>
+        <h3>CAP Theorem position</h3>
+        <p>We favour Availability + Partition Tolerance (AP) for the event-driven path. The proof chain provides Consistency through eventual convergence and tamper detection.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 9 · OBSERVABILITY
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Observability &amp; Operations</div>
+  <h2 class="slide-title">Production-grade visibility</h2>
+  <p class="slide-sub">Every request, event, and failure is traced, measured, and surfaced — from Jaeger spans to admin dashboards.</p>
+
+  <div class="cols-2" style="margin-top:18px;">
+    <div style="display:grid;gap:10px;">
+      <div class="bullet-item">
+        <span class="bullet-icon">🔭</span>
+        <div class="bullet-copy"><strong>OpenTelemetry + Jaeger</strong><span>Distributed traces show exactly how long each service step took and where failures occurred across service boundaries.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">📊</span>
+        <div class="bullet-copy"><strong>Prometheus + Grafana</strong><span>Request throughput, step duration, retry counts, and circuit breaker state exported as metrics and visualised in dashboards.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">🛠️</span>
+        <div class="bullet-copy"><strong>Admin Dashboard</strong><span>Real-time service health, circuit breaker states (CLOSED / OPEN / HALF-OPEN), and SLA violation alerts — all in one view.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">⏱️</span>
+        <div class="bullet-copy"><strong>SLA Monitoring (SLA-001)</strong><span>Configurable SLA thresholds per service. Violations are recorded in the admin panel with timestamps and service name for rapid triage.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">📡</span>
+        <div class="bullet-copy"><strong>Real-time SSE Streaming</strong><span>Frontend dashboard receives live status updates via Server-Sent Events — no polling, no delay.</span></div>
+      </div>
+    </div>
+    <div style="display:grid;gap:12px;">
+      <div class="card card-accent-blue">
+        <div class="card-label" style="margin-bottom:8px;">Observability Stack</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <span class="pill pill-orange">OpenTelemetry</span>
+          <span class="pill pill-blue">Jaeger</span>
+          <span class="pill pill-orange">Prometheus</span>
+          <span class="pill pill-green">Grafana</span>
+          <span class="pill pill-purple">SSE Streaming</span>
+        </div>
+        <p style="margin-top:10px;">Instrumented at the NestJS interceptor level — zero business logic changes needed to add tracing.</p>
+      </div>
+      <div class="card card-accent-green">
+        <div class="card-label" style="margin-bottom:8px;">Admin Panel Surfaces</div>
+        <ul style="padding-left:16px;display:grid;gap:6px;">
+          <li style="font-size:0.83rem;color:var(--text-secondary);">Per-service health status (healthy / degraded / down)</li>
+          <li style="font-size:0.83rem;color:var(--text-secondary);">Circuit breaker state per service</li>
+          <li style="font-size:0.83rem;color:var(--text-secondary);">SLA violations with timestamps</li>
+          <li style="font-size:0.83rem;color:var(--text-secondary);">DLQ message count + replay trigger</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 10 · DEPLOYMENT & SCALE
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Deployment</div>
+  <h2 class="slide-title">Kubernetes-ready, cloud-deployed</h2>
+  <p class="slide-sub">Every service is containerised and orchestrated — deployable locally via Docker Compose or at scale on Kubernetes.</p>
+
+  <div class="cols-2" style="margin-top:18px;">
+    <div style="display:grid;gap:10px;">
+      <div class="bullet-item">
+        <span class="bullet-icon">🐳</span>
+        <div class="bullet-copy"><strong>Docker Compose (local dev)</strong><span>Single <code>docker-compose up</code> starts all services, Postgres, Redis, RabbitMQ, Jaeger, and Prometheus.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">☸️</span>
+        <div class="bullet-copy"><strong>Kubernetes (production)</strong><span>Deployment manifests, Services, and ConfigMaps for every component. Horizontal scaling of cleanup workers.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">🌐</span>
+        <div class="bullet-copy"><strong>Cloud Deployment</strong><span>Live on GKE / cloud cluster. All services verified running end-to-end in a production-like environment.</span></div>
+      </div>
+      <div class="bullet-item">
+        <span class="bullet-icon">🔐</span>
+        <div class="bullet-copy"><strong>Environment isolation</strong><span>Secrets managed via <code>.env.example</code> pattern. No credentials committed to source control.</span></div>
+      </div>
+    </div>
+    <div style="display:grid;gap:12px;">
+      <div class="card">
+        <div class="card-label" style="margin-bottom:10px;">Services in Production</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <span class="pill pill-orange">Backend API</span>
+          <span class="pill pill-blue">Frontend</span>
+          <span class="pill pill-purple">Cache Cleanup</span>
+          <span class="pill pill-green">Search Cleanup</span>
+          <span class="pill" style="background:rgba(251,191,36,0.12);border-color:rgba(251,191,36,0.28);color:#fcd34d;">Analytics</span>
+          <span class="pill" style="background:rgba(251,191,36,0.12);border-color:rgba(251,191,36,0.28);color:#fcd34d;">Backup</span>
+          <span class="pill pill-purple">Proof Service</span>
+          <span class="pill">RabbitMQ</span>
+          <span class="pill">PostgreSQL</span>
+          <span class="pill">Redis</span>
+        </div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-box">
+          <div class="metric-val" style="color:var(--accent-blue);">10+</div>
+          <div class="metric-label">Microservices</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val" style="color:var(--accent-orange);">65</div>
+          <div class="metric-label">Unit Tests</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val" style="color:var(--accent-green);">100%</div>
+          <div class="metric-label">Tests Passing</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 11 · KEY RESULTS
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Key Results</div>
+  <h2 class="slide-title">What we built and proved</h2>
+
+  <div class="cols-3" style="margin-top:20px;">
+    <div class="card card-accent-orange">
+      <div class="card-icon">🏗️</div>
+      <h3>Complete Distributed System</h3>
+      <p>10+ microservices coordinating end-to-end deletion across 5 data store types — all event-driven and independently deployable.</p>
+    </div>
+    <div class="card card-accent-blue">
+      <div class="card-icon">🔒</div>
+      <h3>Verifiable Proof Chain</h3>
+      <p>Cryptographic hash chain produced for every deletion. Tamper detection works at the single-record level.</p>
+    </div>
+    <div class="card card-accent-green">
+      <div class="card-icon">💪</div>
+      <h3>Failure-Safe Design</h3>
+      <p>Retry + DLQ + idempotency + circuit breaker means no deletion is lost silently — even under network partitions.</p>
+    </div>
+  </div>
+
+  <div style="margin-top:14px;">
+    <div class="metric-row">
+      <div class="metric-box">
+        <div class="metric-val" style="color:var(--accent-blue);">65</div>
+        <div class="metric-label">Unit Tests</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val" style="color:var(--accent-green);">15</div>
+        <div class="metric-label">Test Suites</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val" style="color:var(--accent-orange);">5</div>
+        <div class="metric-label">Data Stores Covered</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val" style="color:var(--accent-purple);">3</div>
+        <div class="metric-label">Reliability Layers</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val" style="color:var(--accent-green);">∞</div>
+        <div class="metric-label">Proof Chain Depth</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 12 · TEAM CONTRIBUTIONS
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-label">Team Contributions</div>
+  <h2 class="slide-title">Who built what</h2>
+
+  <div style="flex:1;display:flex;flex-direction:column;margin-top:18px;gap:14px;">
+    <div class="table-wrap">
+      <table class="contrib-table">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Owned Areas</th>
+            <th>Key Deliverables</th>
+            <th>Impact</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="contrib-row-hs">
+            <td>Haoyuan Shan</td>
+            <td>GitHub consolidation, Kubernetes / cloud deployment, backend integration, documentation coordination</td>
+            <td>K8s manifests, cloud deployment, integration closure, proof-chain optimisation, demo data</td>
+            <td><span class="impact-badge impact-hs">Cohesive, demo-ready, submission-ready deliverable</span></td>
+          </tr>
+          <tr class="contrib-row-vm">
+            <td>Vritika Malhotra</td>
+            <td>Retry, DLQ, idempotency, circuit breaker, reliability design &amp; documentation</td>
+            <td>Circuit breaker service, DLQ replay, idempotency guard, reliability spec, unit tests</td>
+            <td><span class="impact-badge impact-vm">Failure recovery &amp; robustness of distributed workflows</span></td>
+          </tr>
+          <tr class="contrib-row-sp">
+            <td>Sakshat Patil</td>
+            <td>Frontend dashboard, key workflow UX, real-time status experience</td>
+            <td>React pages, SSE streaming UI, bulk upload, admin panel front-end, demo script</td>
+            <td><span class="impact-badge impact-sp">Visualisation quality &amp; demo clarity</span></td>
+          </tr>
+          <tr class="contrib-row-am">
+            <td>Asim Mohammed</td>
+            <td>Consistency semantics, backend / admin workflow, status-behaviour refinement</td>
+            <td>SLA monitor, SSE backend, deletion-request service, state-model design, admin-SLA API</td>
+            <td><span class="impact-badge impact-am">State-model clarity &amp; operational reliability</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- RACI summary -->
+    <div class="table-wrap">
+      <table class="styled-table" style="font-size:0.78rem;">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th style="color:#85b3ff;">Haoyuan</th>
+            <th style="color:#d0b0ff;">Vritika</th>
+            <th style="color:#ffb085;">Sakshat</th>
+            <th style="color:#7cf0bc;">Asim</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Backend / API</strong></td>
+            <td><span class="pill pill-blue" style="font-size:0.7rem;">R</span></td>
+            <td><span class="pill pill-purple" style="font-size:0.7rem;">C</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill pill-green" style="font-size:0.7rem;">A</span></td>
+          </tr>
+          <tr>
+            <td><strong>Frontend</strong></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill pill-orange" style="font-size:0.7rem;">R/A</span></td>
+            <td><span class="pill pill-green" style="font-size:0.7rem;">C</span></td>
+          </tr>
+          <tr>
+            <td><strong>Reliability (Retry/CB/Idempotency)</strong></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill pill-purple" style="font-size:0.7rem;">R/A</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill pill-green" style="font-size:0.7rem;">C</span></td>
+          </tr>
+          <tr>
+            <td><strong>Proof &amp; Audit Chain</strong></td>
+            <td><span class="pill pill-blue" style="font-size:0.7rem;">R/A</span></td>
+            <td><span class="pill pill-purple" style="font-size:0.7rem;">C</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+          </tr>
+          <tr>
+            <td><strong>Deployment / Cloud</strong></td>
+            <td><span class="pill pill-blue" style="font-size:0.7rem;">R/A</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">C</span></td>
+          </tr>
+          <tr>
+            <td><strong>Consistency / State Model</strong></td>
+            <td><span class="pill" style="font-size:0.7rem;">C</span></td>
+            <td><span class="pill pill-purple" style="font-size:0.7rem;">C</span></td>
+            <td><span class="pill" style="font-size:0.7rem;">I</span></td>
+            <td><span class="pill pill-green" style="font-size:0.7rem;">R/A</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:0.72rem;color:var(--text-muted);text-align:right;">R = Responsible &nbsp;·&nbsp; A = Accountable &nbsp;·&nbsp; C = Consulted &nbsp;·&nbsp; I = Informed</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 13 · Q&A
+══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="qa-center">
+    <div class="qa-glyph">🗑️</div>
+    <h2 class="qa-title">Thank you.<br/><span>Questions?</span></h2>
+    <p class="qa-sub">EraseGraph — Verifiable deletion propagation in distributed systems</p>
+    <div class="qa-chips">
+      <span class="pill pill-orange">Event-Driven Orchestration</span>
+      <span class="pill pill-blue">Proof Chain</span>
+      <span class="pill pill-purple">Reliability First</span>
+      <span class="pill pill-green">Compliance Ready</span>
+      <span class="pill">CMPE 273 · Spring 2026</span>
+    </div>
+  </div>
+</section>
+
+</div><!-- #deck -->
+
+<!-- Navigation -->
+<div id="nav">
+  <button id="btn-prev" title="Previous (← arrow key)">←</button>
+  <span id="slide-counter">1 / 13</span>
+  <button id="btn-next" title="Next (→ arrow key)">→</button>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const counter = document.getElementById('slide-counter');
+const progress = document.getElementById('progress');
+const total = slides.length;
+let current = 0;
+
+function show(n) {
+  slides[current].classList.remove('active');
+  current = (n + total) % total;
+  slides[current].classList.add('active');
+  counter.textContent = `${current + 1} / ${total}`;
+  progress.style.width = `${((current + 1) / total) * 100}%`;
+}
+
+document.getElementById('btn-next').addEventListener('click', () => show(current + 1));
+document.getElementById('btn-prev').addEventListener('click', () => show(current - 1));
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); show(current + 1); }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); show(current - 1); }
+});
+
+// Touch/swipe support
+let touchStartX = 0;
+document.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(dx) > 50) dx < 0 ? show(current + 1) : show(current - 1);
+});
+
+// Init progress bar
+progress.style.width = `${(1 / total) * 100}%`;
+</script>
+</body>
+</html>

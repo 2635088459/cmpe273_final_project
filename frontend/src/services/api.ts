@@ -304,4 +304,32 @@ export async function getSlaViolations(): Promise<SlaViolation[]> {
   return response.data;
 }
 
+// --- Data Discovery ---
+
+export type SystemScanResult = {
+  name: string;
+  key: string;
+  color: string;
+  found: boolean;
+  count: number;
+  records: string[];
+  note?: string;
+};
+
+export type DataDiscoveryScanResult = {
+  subject_id: string;
+  scanned_at: string;
+  total_records: number;
+  systems: SystemScanResult[];
+};
+
+export async function scanSubject(
+  subjectId: string
+): Promise<DataDiscoveryScanResult> {
+  const response = await API.get<DataDiscoveryScanResult>(
+    `/deletions/scan/${encodeURIComponent(subjectId)}`
+  );
+  return response.data;
+}
+
 export default API;

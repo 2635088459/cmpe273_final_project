@@ -22,7 +22,8 @@ import {
   ApiQuery
 } from '@nestjs/swagger';
 import { DeletionRequestService } from './deletion-request.service';
-import { 
+import { DataDiscoveryService } from './data-discovery.service';
+import {
   CreateDeletionRequestDto,
   DeletionRequestCreatedDto,
   DeletionRequestResponseDto,
@@ -34,7 +35,10 @@ import {
 @ApiTags('Deletion Requests')
 @Controller('deletions')
 export class DeletionRequestController {
-  constructor(private readonly deletionRequestService: DeletionRequestService) {}
+  constructor(
+    private readonly deletionRequestService: DeletionRequestService,
+    private readonly dataDiscoveryService: DataDiscoveryService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
@@ -55,6 +59,13 @@ export class DeletionRequestController {
     @Body(ValidationPipe) dto: CreateDeletionRequestDto
   ): Promise<DeletionRequestCreatedDto> {
     return this.deletionRequestService.createDeletionRequest(dto);
+  }
+
+  @Get('scan/:subjectId')
+  @ApiOperation({ summary: 'Scan all data stores for a subject' })
+  @ApiParam({ name: 'subjectId', description: 'The subject/user ID to scan for' })
+  async scanSubject(@Param('subjectId') subjectId: string) {
+    return this.dataDiscoveryService.scanSubject(subjectId);
   }
 
   @Get()

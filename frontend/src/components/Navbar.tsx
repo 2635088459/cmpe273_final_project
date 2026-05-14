@@ -54,6 +54,14 @@ function Navbar() {
           Bulk Upload
         </NavLink>
         <NavLink
+          to="/discover"
+          className={({ isActive }) =>
+            `app-nav-link${isActive ? " active" : ""}`
+          }
+        >
+          Data Discovery
+        </NavLink>
+        <NavLink
           to="/admin"
           className={({ isActive }) =>
             `app-nav-link${isActive ? " active" : ""}`
